@@ -11,6 +11,8 @@ use App\Http\Controllers\{
     UserController, DashboardController
 };
 
+Route::redirect('/', '/login');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/lecturas', [LecturasController::class, 'index'])->name('lecturas.index');
     Route::post('/lecturas', [LecturasController::class, 'store'])->name('lecturas.store');
@@ -47,9 +49,9 @@ Route::middleware(['auth', 'verified', 'role:master_admin|casino_admin|sucursal_
 
 
 
-Route::get('/', function () {
-    return Inertia::render('Welcome');
-})->name('home');
+// Route::get('/', function () {
+//     return Inertia::render('Welcome');
+// })->name('home');
 
 // Route::get('dashboard', function () {
 //     return Inertia::render('Dashboard');

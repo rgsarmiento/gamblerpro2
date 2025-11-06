@@ -18,7 +18,7 @@ defineProps<{
 }>();
 </script>
 
-<template>
+<!-- <template>
     <AuthBase
         title="Log in to your account"
         description="Enter your email and password below to log in"
@@ -106,4 +106,74 @@ defineProps<{
             </div>
         </Form>
     </AuthBase>
+</template> -->
+<template>
+    <Head title="Iniciar sesión" />
+
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-800 via-indigo-800 to-purple-950 relative overflow-hidden">
+        <!-- Fondo estrellado -->
+        <div class="absolute inset-0 bg-[url('/images/casino-en-linea.webp')] bg-cover opacity-40"></div>
+
+        <!-- Contenedor de login -->
+        <div class="relative z-10 w-full max-w-md px-8 py-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl text-white">
+            <h1 class="text-3xl font-bold text-center mb-6">Bienvenido</h1>
+            <p class="text-center text-sm text-gray-300 mb-8">Inicia sesión para continuar</p>
+
+            <Form
+                v-bind="AuthenticatedSessionController.store.form()"
+                :reset-on-success="['password']"
+                v-slot="{ errors, processing }"
+                class="flex flex-col gap-5"
+            >
+                <!-- Campo Email -->
+                <div class="relative">
+                    <User class="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <Input
+                        id="email"
+                        type="email"
+                        name="email"
+                        required
+                        autofocus
+                        placeholder="Correo electrónico"
+                        autocomplete="email"
+                        class="pl-10 bg-white/20 border-white/30 text-white placeholder-gray-300 focus:ring-2 focus:ring-purple-400"
+                    />
+                    <InputError :message="errors.email" />
+                </div>
+
+                <!-- Campo Contraseña -->
+                <div class="relative">
+                    <Lock class="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <Input
+                        id="password"
+                        type="password"
+                        name="password"
+                        required
+                        placeholder="Contraseña"
+                        autocomplete="current-password"
+                        class="pl-10 bg-white/20 border-white/30 text-white placeholder-gray-300 focus:ring-2 focus:ring-purple-400"
+                    />
+                    <InputError :message="errors.password" />
+                </div>
+
+                <!-- Recordarme -->
+                <div class="flex items-center justify-between text-sm text-gray-200">
+                    <Label for="remember" class="flex items-center gap-2 cursor-pointer">
+                        <Checkbox id="remember" name="remember" class="border-white/40" />
+                        <span>Recordarme</span>
+                    </Label>
+                </div>
+
+                <!-- Botón -->
+                <Button
+                    type="submit"
+                    class="mt-4 w-full bg-white text-purple-700 font-semibold py-2 rounded-full hover:bg-purple-100 transition-all duration-300"
+                    :disabled="processing"
+                >
+                    <LoaderCircle v-if="processing" class="h-4 w-4 animate-spin mx-auto" />
+                    <span v-else>Iniciar sesión</span>
+                </Button>
+            </Form>
+        </div>
+    </div>
 </template>
