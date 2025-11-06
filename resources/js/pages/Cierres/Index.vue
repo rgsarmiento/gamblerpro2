@@ -1,3 +1,14 @@
+<template>
+  <div class="p-6">
+    <h1 class="text-2xl font-bold">Cierres de Caja</h1>
+    <p class="text-muted-foreground">Aquí se mostrarán los cierres de caja registrados.</p>
+  </div>
+</template>
+
+<script setup lang="ts">
+// puedes agregar tu lógica aquí luego
+</script>
+
 <!-- <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Head, router } from '@inertiajs/vue3'
