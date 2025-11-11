@@ -24,7 +24,8 @@ return new class extends Migration
             $table->decimal('neto_final', 18, 2)->default(0);
             $table->decimal('total_creditos', 18, 2)->default(0);
             $table->decimal('total_recaudo', 18, 2)->default(0);
-            $table->foreignId('cierre_id')->nullable()->constrained('cierres_caja')->nullOnDelete();
+            $table->boolean('confirmado')->default(0);
+            $table->timestamp('fecha_confirmacion')->nullable();
             $table->timestamps();
             $table->unique(['maquina_id','fecha']);
             $table->index(['sucursal_id','fecha']);

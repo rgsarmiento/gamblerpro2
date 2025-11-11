@@ -19,6 +19,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/lecturas/{lecturas}', [LecturasController::class, 'update'])->name('lecturas.update');
     Route::delete('/lecturas/{lectura}', [LecturasController::class, 'destroy'])->name('lecturas.destroy');
 
+    Route::post('/lecturas/confirmar', [LecturasController::class, 'confirmarLecturas'])->name('lecturas.confirmar');
+
 
     Route::get('/gastos', [GastosController::class, 'index'])->name('gastos.index');
     Route::post('/gastos', [GastosController::class, 'store'])->name('gastos.store');
