@@ -67,6 +67,7 @@ const form = useForm({
 // Props desde Laravel
 const props = defineProps<{
     lecturas: any
+    pendientes: boolean
     total_registros: number
     total_recaudado: number
     casinos: Array<{ id: number, nombre: string }>
@@ -128,6 +129,27 @@ watch(
     }
 )
 
+
+// 🧭 watcher para recargar lecturas según casino / sucursal
+watch(
+  () => [form.casino_id, form.sucursal_id],
+  ([casino, sucursal]) => {
+    // Si el usuario es master o casino admin, asegurarse de que haya selección antes de cargar
+    if ((role.value === 'master_admin' || role.value === 'casino_admin') && !sucursal) return
+
+    router.visit('/lecturas', {
+      method: 'get',
+      preserveScroll: true,
+      preserveState: true,
+      data: {
+        casino_id: casino,
+        sucursal_id: sucursal,
+      },
+    })
+  }
+)
+
+
 // Cálculos automáticos
 const netoFinal = computed(() =>
     Number(form.entrada) - Number(form.salida) - Number(form.jackpots)
@@ -141,7 +163,7 @@ const totalRecaudo = computed(() =>
 
 
 const deleteLectura = async (id: number) => {
-       router.delete(`/lecturas/${id}`, {
+    router.delete(`/lecturas/${id}`, {
         preserveScroll: true,
         onSuccess: () => {
             // ✅ Redirige o refresca la lista
@@ -197,6 +219,22 @@ watchEffect(() => {
         }
     })
 })
+
+const confirmarLecturas = () => {
+  if (!confirm('¿Deseas confirmar todas las lecturas pendientes?')) return
+
+  router.post('/lecturas/confirmar', {
+    sucursal_id: form.sucursal_id // <-- se enviará solo si es master o casino_admin
+  }, {
+    onSuccess: () => {
+      toast.success('Lecturas confirmadas correctamente.')
+    },
+    onError: (errors) => {
+      toast.error(errors.lecturas ?? 'Error al confirmar lecturas')
+    }
+  })
+}
+
 </script>
 
 
@@ -263,7 +301,7 @@ watchEffect(() => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                        }}</SelectItem>
+                                    }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -386,6 +424,20 @@ watchEffect(() => {
 
             <div class="p-6 space-y-6">
                 <h1 class="text-2xl font-bold">📊 Lecturas de Máquinas</h1>
+
+
+                <div v-if="props.pendientes" class="flex gap-4 mb-4 justify-end">
+                    <Button class="bg-green-600 text-white hover:bg-green-700" @click="confirmarLecturas"
+                        :disabled="(role === 'master_admin' || role === 'casino_admin') && !form.sucursal_id">
+                        Confirmar lecturas
+                    </Button>
+                </div>
+
+                <!-- Si no hay pendientes -->
+                <p v-else class="text-sm text-muted-foreground text-center my-4">
+                    ✅ Todas las lecturas ya fueron confirmadas.
+                </p>
+
 
                 <!-- Tabla -->
                 <div class="bg-card rounded-lg shadow border border-border">

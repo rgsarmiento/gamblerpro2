@@ -58,6 +58,7 @@ const form = useForm({
     proveedor_id: null as number | null,
     valor: '',
     descripcion: '',
+    fecha: new Date().toISOString().split('T')[0], // fecha actual por defecto
 })
 
 // Props desde Laravel
@@ -110,7 +111,7 @@ const proveedorSeleccionado = computed(() =>
 
 
 const deleteGasto = async (id: number) => {
-       router.delete(`/gastos/${id}`, {
+    router.delete(`/gastos/${id}`, {
         preserveScroll: true,
         onSuccess: () => {
             // ✅ Redirige o refresca la lista
@@ -168,15 +169,15 @@ watchEffect(() => {
 
             <!-- Formulario de nueva lectura -->
             <form @submit.prevent="                
-            form.post('/gastos', {
-                onSuccess: () => {
-                    // Limpia solo los campos de la lectura
-                    form.tipo_gasto_id = null
-                    form.proveedor_id = null
-                    form.valor = ''
-                    form.descripcion = ''
-                },
-            })
+                form.post('/gastos', {
+                    onSuccess: () => {
+                        // Limpia solo los campos de la lectura
+                        form.tipo_gasto_id = null
+                        form.proveedor_id = null
+                        form.valor = ''
+                        form.descripcion = ''
+                    },
+                })
                 " class="space-y-4 bg-card p-4 rounded">
 
                 <!-- Select casino (solo para master_admin) -->
@@ -210,13 +211,19 @@ watchEffect(() => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                        }}</SelectItem>
+                                    }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
                     </div>
                 </div>
-
+                <div class="grid grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm">Fecha</label>
+                        <input v-model="form.fecha" required type="date" class="w-full border rounded px-2 py-1" />
+                    </div>
+                </div>
+                
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm">Tipos gasto</label>
@@ -231,9 +238,9 @@ watchEffect(() => {
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
-                        </Select>   
-                    </div>                   
-                                                          
+                        </Select>
+                    </div>
+
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -244,7 +251,8 @@ watchEffect(() => {
                                 <ComboboxTrigger as-child class="border w-full">
                                     <Button variant="outline" class="justify-between w-full">
                                         <template v-if="proveedorSeleccionado">
-                                            {{ proveedorSeleccionado.identificacion }} - {{ proveedorSeleccionado.nombre }}
+                                            {{ proveedorSeleccionado.identificacion }} - {{ proveedorSeleccionado.nombre
+                                            }}
                                         </template>
                                         <template v-else>
                                             Seleccione un proveedor
@@ -280,18 +288,18 @@ watchEffect(() => {
                     </div>
 
                 </div>
-                
-                <div class="grid grid-cols-4 gap-4">                    
+
+                <div class="grid grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm">Valor</label>
                         <input v-model.number="form.valor" type="number" class="w-full border rounded px-2 py-1" />
-                    </div>                  
+                    </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-4"> 
+
+                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm">Descripción</label>
-                        <input v-model="form.descripcion" type="text" class="w-full border rounded px-2 py-1" /> 
+                        <input v-model="form.descripcion" type="text" class="w-full border rounded px-2 py-1" />
                     </div>
                 </div>
 
@@ -324,17 +332,17 @@ watchEffect(() => {
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Sucursal</TableHead>
                                 <TableHead>Usuario</TableHead>
-                                <TableHead>Acciones</TableHead>                                
+                                <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
                         <TableBody>
                             <TableRow v-for="g in gastos.data" :key="g.id">
-                        
+
                                 <TableCell>
                                     <Badge variant="outline">{{ g.tipo?.nombre ?? 'N/A' }}</Badge>
-                                </TableCell>                                
-                                <TableCell>{{ g.proveedor?.nombre }}</TableCell>                                
+                                </TableCell>
+                                <TableCell>{{ g.proveedor?.nombre }}</TableCell>
                                 <TableCell>{{ g.descripcion }}</TableCell>
                                 <TableCell>{{ formatCurrency(g.valor) }}</TableCell>
                                 <TableCell>{{ g.fecha }}</TableCell>

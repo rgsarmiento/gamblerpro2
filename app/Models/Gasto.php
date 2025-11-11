@@ -15,7 +15,7 @@ class Gasto extends Model
      'fecha',
      'valor',
      'descripcion',
-     'cierre_id'];
+     'fecha',];
     
     public function sucursal()
     {
@@ -33,8 +33,5 @@ class Gasto extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
-    public function cierre()
-    {
-        return $this->belongsTo(CierreCaja::class, 'cierre_id');
-    }
+    
 }

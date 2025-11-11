@@ -88,7 +88,7 @@ class DashboardController extends Controller
 
         // 🔹 Lecturas CERRADAS en el rango
         $lecturas = LecturaMaquina::query()
-            ->whereNotNull('cierre_id')
+            ->where('confirmado', 1)
             ->whereBetween('fecha', [$inicio, $fin])
             ->when(
                 $filtroCasino,
@@ -100,7 +100,6 @@ class DashboardController extends Controller
 
         // 🔹 Gastos CERRADOS en el rango
         $gastos = Gasto::query()
-            ->whereNotNull('cierre_id')
             ->whereBetween('fecha', [$inicio, $fin])
             ->when(
                 $filtroCasino,
@@ -130,7 +129,7 @@ class DashboardController extends Controller
         $recaudoPorSucursal = Sucursal::select('id', 'nombre')
             ->when($filtroCasino, fn($q) => $q->where('casino_id', $filtroCasino))
             ->withSum(['lecturasMaquinas as total_recaudo' => function ($q) use ($inicio, $fin) {
-                $q->whereNotNull('cierre_id')
+                $q->where('confirmado', 1)
                     ->whereBetween('fecha', [$inicio, $fin]);
             }], 'total_recaudo')
             ->orderByDesc('total_recaudo')

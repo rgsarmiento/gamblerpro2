@@ -20,7 +20,8 @@ class LecturaMaquina extends Model
         'total_creditos',
         'total_recaudo',
         'fecha',
-        'cierre_id'
+        'confirmado',
+        'fecha_confirmacion',
     ];
 
 

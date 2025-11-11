@@ -67,12 +67,12 @@ class GastosController extends Controller
             'tipo_gasto_id' => 'required|exists:tipos_gasto,id',
             'proveedor_id' => 'required|exists:proveedores,id',            
             'valor' => 'required|numeric|min:0.01',
-            'descripcion' => 'nullable|string'
+            'descripcion' => 'nullable|string',
+            'fecha' => 'required|date',
         ]);
 
 
         $gasto = new Gasto(array_merge($data, [
-            'fecha' => now(),
             'user_id' => $req->user()->id,
         ]));
 

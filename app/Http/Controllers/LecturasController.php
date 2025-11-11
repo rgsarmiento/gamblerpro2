@@ -8,6 +8,8 @@ use Inertia\Inertia;
 use App\Models\{LecturaMaquina, Maquina, Sucursal, Casino};
 use Illuminate\Validation\ValidationException;
 
+use Illuminate\Support\Facades\DB;
+
 class LecturasController extends Controller
 {
     /**
@@ -21,12 +23,29 @@ class LecturasController extends Controller
         $q = LecturaMaquina::with(['maquina:id,nombre,denominacion', 'sucursal:id,nombre,casino_id'])
             ->orderByDesc('fecha');
 
-        // 🔹 Filtrar por rol
-        if ($user->hasRole('casino_admin')) {
+        // 🔹 Filtro dinámico según el rol
+        if ($user->hasRole('master_admin')) {
+            if ($req->filled('casino_id')) {
+                $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
+            }
+            if ($req->filled('sucursal_id')) {
+                $q->where('sucursal_id', $req->sucursal_id);
+            } else {
+                // 👇 si no hay sucursal seleccionada, no mostrar nada
+                $q->whereRaw('1=0');
+            }
+        } elseif ($user->hasRole('casino_admin')) {
             $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+
+            if ($req->filled('sucursal_id')) {
+                $q->where('sucursal_id', $req->sucursal_id);
+            } else {
+                $q->whereRaw('1=0');
+            }
         } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
             $q->where('sucursal_id', $user->sucursal_id);
         }
+
 
         // 🔹 Filtros opcionales por fecha o máquina
         if ($req->filled('fecha')) {
@@ -36,8 +55,8 @@ class LecturasController extends Controller
             $q->where('maquina_id', $req->maquina_id);
         }
 
-        // 🔹 Mostrar solo las lecturas pendientes (sin cierre)
-        $q->whereNull('cierre_id');
+        // 🔹 Mostrar solo las lecturas pendientes (sin confirmar)
+        $q->where('confirmado', 0);
 
         $lecturas = $q->paginate(50)->withQueryString();
 
@@ -54,8 +73,11 @@ class LecturasController extends Controller
 
         $maquinas = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id', 'denominacion', 'ultimo_neto_final')->get();
 
+        $pendientes = $lecturas->total() > 0;
+
         return Inertia::render('Lecturas/Index', [
             'lecturas'   => $lecturas,
+            'pendientes' => $pendientes,
             'total_registros' => $lecturas->total(),
             'total_recaudado' => $lecturas->sum('total_recaudo'),
             'casinos'    => $casinos,
@@ -94,7 +116,7 @@ class LecturasController extends Controller
 
         $existe = LecturaMaquina::where('maquina_id', $data['maquina_id'])
             ->where('sucursal_id', $data['sucursal_id'])
-            ->whereNull('cierre_id') // aún no se cerró
+            ->where('confirmado', 0)
             ->exists();
 
         if ($existe) {
@@ -149,9 +171,9 @@ class LecturasController extends Controller
     public function destroy(Request $req, LecturaMaquina $lectura)
     {
         // 🚫 No permitir eliminar lecturas con cierre
-        if ($lectura->cierre_id) {
+        if ($lectura->confirmado) {
             return back()->withErrors([
-                'lectura' => 'No se puede eliminar una lectura con cierre de caja.'
+                'lectura' => 'No se puede eliminar una lectura ya confirmada.'
             ]);
         }
 
@@ -172,5 +194,48 @@ class LecturasController extends Controller
         }
 
         return redirect()->back()->with('success', 'Lectura eliminada correctamente');
+    }
+
+
+    public function confirmarLecturas(Request $req)
+    {
+        $user = $req->user();
+
+        // Validar que venga la sucursal (para los roles que la requieren)
+        if ($user->hasAnyRole(['master_admin', 'casino_admin'])) {
+            $req->validate([
+                'sucursal_id' => 'required|exists:sucursales,id'
+            ]);
+
+            $sucursalId = $req->sucursal_id;
+        } else {
+            $sucursalId = $user->sucursal_id;
+        }
+
+        // Obtener las lecturas pendientes para esa sucursal
+        $lecturas = LecturaMaquina::where('sucursal_id', $sucursalId)
+            ->where('confirmado', 0)
+            ->get();
+
+        if ($lecturas->isEmpty()) {
+            return back()->withErrors(['lecturas' => 'No hay lecturas pendientes por confirmar en esta sucursal.']);
+        }
+
+        DB::transaction(function () use ($lecturas) {
+            foreach ($lecturas as $lectura) {
+                // Marcar como confirmada
+                $lectura->update([
+                    'confirmado' => 1,
+                    'fecha_confirmacion' => now(),
+                ]);
+
+                // // Actualizar el neto final de la máquina
+                // $lectura->maquina->update([
+                //     'ultimo_neto_final' => $lectura->neto_final,
+                // ]);
+            }
+        });
+
+        return back()->with('success', 'Lecturas confirmadas correctamente.');
     }
 }
