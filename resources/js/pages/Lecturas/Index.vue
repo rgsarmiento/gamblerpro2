@@ -445,6 +445,7 @@ const confirmarLecturas = () => {
                         <TableHeader>
                             <TableRow>
                                 <!-- <TableHead>ID</TableHead> -->
+                                <TableHead>Ndi</TableHead>
                                 <TableHead>Máquina</TableHead>
                                 <TableHead>Entrada</TableHead>
                                 <TableHead>Salida</TableHead>
@@ -461,6 +462,7 @@ const confirmarLecturas = () => {
                         <TableBody>
                             <TableRow v-for="l in lecturas.data" :key="l.id">
                                 <!-- <TableCell>{{ l.id }}</TableCell> -->
+                                 <TableCell>{{ l.maquina?.ndi }}</TableCell>
                                 <TableCell>{{ l.maquina?.nombre }}</TableCell>
                                 <TableCell>{{ formatNumber(l.entrada) }}</TableCell>
                                 <!-- <TableCell>{{ l.sucursal?.nombre }}</TableCell> -->

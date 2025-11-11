@@ -20,7 +20,7 @@ class LecturasController extends Controller
 
         $user = $req->user();
 
-        $q = LecturaMaquina::with(['maquina:id,nombre,denominacion', 'sucursal:id,nombre,casino_id'])
+        $q = LecturaMaquina::with(['maquina:id,ndi,nombre,denominacion', 'sucursal:id,nombre,casino_id'])
             ->orderByDesc('fecha');
 
         // 🔹 Filtro dinámico según el rol
