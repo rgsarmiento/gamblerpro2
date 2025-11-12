@@ -27,7 +27,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/gastos/{gasto}', [GastosController::class, 'destroy'])->name('gastos.destroy');
 
     Route::get('/cierres', [CierresController::class, 'index'])->name('cierres.index');
+    
     Route::get('/proveedores', [ProveedoresController::class, 'index'])->name('proveedores.index');
+    Route::post('/proveedores', [ProveedoresController::class, 'store'])->name('proveedores.store');
+    Route::put('/proveedores/{proveedor}', [ProveedoresController::class, 'update'])->name('proveedores.update');
+    Route::patch('/proveedores/{proveedor}/toggle', [ProveedoresController::class, 'toggleStatus'])->name('proveedores.toggle');
+    Route::delete('/proveedores/{proveedor}', [ProveedoresController::class, 'destroy'])->name('proveedores.destroy');
 
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 });

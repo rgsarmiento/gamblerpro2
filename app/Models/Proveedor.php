@@ -13,7 +13,8 @@ class Proveedor extends Model
     'nombre',
     'identificacion',
     'telefono',
-    'direccion'];
+    'direccion',
+    'activo',];
 
     public function sucursal()
     {

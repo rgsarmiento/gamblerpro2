@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('identificacion');
             $table->string('telefono')->nullable();
             $table->string('direccion')->nullable();
+            $table->boolean('activo')->default(true);
             $table->timestamps();
             $table->unique(['sucursal_id','identificacion']);
         });
