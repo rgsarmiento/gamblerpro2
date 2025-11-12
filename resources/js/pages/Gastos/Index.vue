@@ -154,6 +154,38 @@ watchEffect(() => {
         }
     })
 })
+
+
+// === ✅ Recarga dinámica de tabla según filtros ===
+watch(
+    [() => form.fecha, () => form.casino_id, () => form.sucursal_id],
+    ([newFecha, newCasino, newSucursal]) => {
+        // Evitar consultas vacías si se requiere selección
+        if (
+            (role.value === 'master_admin' && !newSucursal) ||
+            (role.value === 'casino_admin' && !newSucursal)
+        ) {
+            return
+        }
+
+        // 🔄 Recargar datos con los nuevos filtros
+        router.get(
+            '/gastos',
+            {
+                fecha: newFecha,
+                casino_id: newCasino,
+                sucursal_id: newSucursal,
+            },
+            {
+                preserveState: true,
+                replace: true,
+                preserveScroll: true,
+            }
+        )
+    }
+)
+
+
 </script>
 
 
@@ -211,7 +243,7 @@ watchEffect(() => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                    }}</SelectItem>
+                                        }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -223,7 +255,7 @@ watchEffect(() => {
                         <input v-model="form.fecha" required type="date" class="w-full border rounded px-2 py-1" />
                     </div>
                 </div>
-                
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm">Tipos gasto</label>
@@ -321,6 +353,7 @@ watchEffect(() => {
                 <h1 class="text-2xl font-bold">📊 Gastos Registrados</h1>
 
                 <!-- Tabla -->
+                 <div v-if="(role !== 'master_admin' && role !== 'casino_admin') || form.sucursal_id">
                 <div class="bg-card rounded-lg shadow border border-border">
                     <Table>
                         <TableHeader>
@@ -379,7 +412,7 @@ watchEffect(() => {
                         </TableBody>
                     </Table>
                 </div>
-
+            </div>
                 <!-- Paginación -->
                 <div class="flex gap-2 mt-4">
                     <a v-for="link in gastos.links" :key="link.label" v-html="link.label" :href="link.url ?? '#'"

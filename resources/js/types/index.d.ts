@@ -42,6 +42,7 @@ export interface NavItem {
     icon?: any
     isGroup?: boolean
     items?: NavItem[]
+    roles?: string[]
 }
 
 export type BreadcrumbItemType = BreadcrumbItem;

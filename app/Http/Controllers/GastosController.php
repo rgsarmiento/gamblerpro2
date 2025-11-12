@@ -13,49 +13,85 @@ class GastosController extends Controller
      * Display a listing of the resource.
      */
     public function index(Request $req)
-    {
-        $user = $req->user();
-        $q = Gasto::with(['tipo', 'proveedor', 'sucursal:id,nombre,casino_id', 'usuario'])->orderByDesc('fecha');
-       
-        if ($user->hasRole('master_admin')) {
-        } elseif ($user->hasRole('casino_admin')) {
-            $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
-        } else {
-            $q->where('sucursal_id', $user->sucursal_id);
+{
+    $user = $req->user();
+
+    $q = Gasto::with(['tipo', 'proveedor', 'usuario', 'sucursal.casino'])
+        ->orderByDesc('fecha');
+
+    // =========================
+    // 🔹 FILTROS POR ROL
+    // =========================
+    if ($user->hasRole('master_admin')) {
+        // Ver todos los gastos, con filtros opcionales
+        if ($req->filled('casino_id')) {
+            $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
         }
+        if ($req->filled('sucursal_id')) {
+            $q->where('sucursal_id', $req->sucursal_id);
+        }
+    } elseif ($user->hasRole('casino_admin')) {
+        // Filtrar solo gastos del casino asignado
+        $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
 
-        if ($req->filled('fecha')) $q->where('fecha', $req->fecha);
-        if ($req->filled('tipo_gasto_id')) $q->where('tipo_gasto_id', $req->tipo_gasto_id);
+        if ($req->filled('sucursal_id')) {
+            $q->where('sucursal_id', $req->sucursal_id);
+        }
+    } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+        // Solo su sucursal
+        $q->where('sucursal_id', $user->sucursal_id);
+    }
 
-        $q->whereNull('cierre_id');
-        
-        $gastos = $q->paginate(20)->withQueryString();
+    // =========================
+    // 🔹 FILTRO POR FECHA
+    // =========================
+    if ($req->filled('fecha')) {
+        $q->whereDate('fecha', $req->fecha);
+    }else{
+        // Por defecto, mostrar solo gastos del dia actual
+        $q->whereDate('fecha', now());
+    }
 
-        // Datos para selects
-        $casinos = $user->hasRole('master_admin')
-            ? Casino::select('id', 'nombre')->get()
-            : [];
+    // =========================
+    // 🔹 PAGINACIÓN Y CÁLCULOS
+    // =========================
+    $gastos = $q->paginate(50)->withQueryString();
 
-        $sucursales = $user->hasAnyRole(['master_admin', 'casino_admin'])
-            ? Sucursal::select('id', 'nombre', 'casino_id')
+    $totalGastos = (clone $q)->sum('valor');
+    $totalRegistros = $gastos->total();
+
+    // =========================
+    // 🔹 DATOS AUXILIARES
+    // =========================
+    $casinos = $user->hasRole('master_admin')
+        ? Casino::select('id', 'nombre')->get()
+        : [];
+
+    $sucursales = $user->hasAnyRole(['master_admin', 'casino_admin'])
+        ? Sucursal::select('id', 'nombre', 'casino_id')
             ->when($user->hasRole('casino_admin'), fn($qq) => $qq->where('casino_id', $user->casino_id))
             ->get()
-            : [];
+        : [];
 
-        $tipos_gasto = TipoGasto::select('id', 'nombre')->get();
-        $proveedores = Proveedor::select('id', 'identificacion', 'nombre', 'sucursal_id')->get();
+    $tiposGasto = TipoGasto::select('id', 'nombre')->get();
 
-        return Inertia::render('Gastos/Index', [
-            'gastos'   => $gastos,
-            'total_registros' => $gastos->total(),
-            'total_gastos' => $gastos->sum('valor'),
-            'casinos'    => $casinos,
-            'sucursales' => $sucursales,
-            'tipos_gasto'   => $tipos_gasto,
-            'proveedores'   => $proveedores,
-            'user'       => $user->only(['id', 'name', 'sucursal_id', 'casino_id']) + ['roles' => $user->getRoleNames()],
-        ]);
-    }
+    $proveedores = Proveedor::select('id', 'identificacion', 'nombre', 'sucursal_id')->get();
+
+    // =========================
+    // 🔹 RETORNO A VUE
+    // =========================
+    return Inertia::render('Gastos/Index', [
+        'gastos' => $gastos,
+        'total_registros' => $totalRegistros,
+        'total_gastos' => $totalGastos,
+        'casinos' => $casinos,
+        'sucursales' => $sucursales,
+        'tipos_gasto' => $tiposGasto,
+        'proveedores' => $proveedores,
+        'user' => $user->only(['id', 'name', 'sucursal_id', 'casino_id']) + ['roles' => $user->getRoleNames()],
+    ]);
+}
+
 
     /**
      * Store a newly created resource in storage.

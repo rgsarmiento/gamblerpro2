@@ -49,12 +49,7 @@ const mainNavItems: NavItem[] = [
                 title: 'Gastos',
                 href: '/gastos',
                 icon: Receipt,
-            },
-            {
-                title: 'Cierres',
-                href: '/cierres',
-                icon: Box,
-            },
+            },            
         ]
     },
     {
@@ -82,22 +77,25 @@ const mainNavItems: NavItem[] = [
     {
         title: 'Administrador',
         icon: Settings,
-        isGroup: true,
+        isGroup: true,        
         items: [
             {
                 title: 'Casinos',
                 href: '/casinos',
                 icon: Building2,
+                roles: ['master_admin'],
             },
             {
                 title: 'Sucursales',
                 href: '/sucursales',
                 icon: Store,
+                roles: ['master_admin'],
             },
             {
                 title: 'Usuarios',
                 href: '/usuarios',
                 icon: Monitor,
+                roles: ['master_admin'],
             },            
         ]
     }
