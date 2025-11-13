@@ -346,7 +346,7 @@ const confirmarLecturas = () => {
 
                                         <div>
                                             <p class="font-semibold text-slate-200">
-                                                {{ m.ndi }} — {{ m.nombre }} • Den: {{ formatNumber(maquinaSeleccionada.denominacion) }}
+                                                {{ m.ndi }} — {{ m.nombre }} • Den: {{ formatNumber(m.denominacion) }}
                                             </p>                                            
                                         </div>
                                         
