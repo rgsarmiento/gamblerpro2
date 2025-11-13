@@ -172,4 +172,5 @@ function tieneAcceso(item: NavItem): boolean {
     background-color: transparent !important;
     color: inherit !important;
 }
+
 </style>
