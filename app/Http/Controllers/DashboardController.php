@@ -36,6 +36,12 @@ class DashboardController extends Controller
                 $fin = $hoy->copy()->subDay();
                 break;
 
+            case 'custom':
+    $inicio = Carbon::parse($req->input('start_date'))->startOfDay();
+    $fin = Carbon::parse($req->input('end_date'))->endOfDay();
+    break;
+
+
             case 'last7':
                 $inicio = $hoy->copy()->subDays(6); // hoy incluido
                 break;

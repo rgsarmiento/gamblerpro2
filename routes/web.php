@@ -8,7 +8,7 @@ use App\Http\Controllers\{
     GastosController,
     CierresController,
     ProveedoresController,
-    UserController, DashboardController
+    UserController, DashboardController, ReportesController
 };
 
 Route::redirect('/', '/login');
@@ -35,6 +35,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/proveedores/{proveedor}', [ProveedoresController::class, 'destroy'])->name('proveedores.destroy');
 
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/reportes', [ReportesController::class, 'index'])->name('reportes.index');
+    Route::get('/reportes/export', [ReportesController::class, 'export'])->name('reportes.export');
 });
 
 

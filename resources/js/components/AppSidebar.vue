@@ -26,7 +26,7 @@ import {
     Settings,
     Store,
     Monitor,
-    Tag
+    Tag, ChartPie, ChartArea
 } from 'lucide-vue-next'
 
 const mainNavItems: NavItem[] = [
@@ -97,6 +97,19 @@ const mainNavItems: NavItem[] = [
                 icon: Monitor,
                 roles: ['master_admin'],
             },            
+        ]
+    },
+    {
+        title: 'Reportes',
+        icon: ChartPie,
+        isGroup: true,        
+        items: [
+            {
+                title: 'Reportes',
+                href: '/reportes',
+                icon: ChartArea,
+            },
+                     
         ]
     }
 ];

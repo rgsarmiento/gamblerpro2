@@ -132,21 +132,21 @@ watch(
 
 // 🧭 watcher para recargar lecturas según casino / sucursal
 watch(
-  () => [form.casino_id, form.sucursal_id],
-  ([casino, sucursal]) => {
-    // Si el usuario es master o casino admin, asegurarse de que haya selección antes de cargar
-    if ((role.value === 'master_admin' || role.value === 'casino_admin') && !sucursal) return
+    () => [form.casino_id, form.sucursal_id],
+    ([casino, sucursal]) => {
+        // Si el usuario es master o casino admin, asegurarse de que haya selección antes de cargar
+        if ((role.value === 'master_admin' || role.value === 'casino_admin') && !sucursal) return
 
-    router.visit('/lecturas', {
-      method: 'get',
-      preserveScroll: true,
-      preserveState: true,
-      data: {
-        casino_id: casino,
-        sucursal_id: sucursal,
-      },
-    })
-  }
+        router.visit('/lecturas', {
+            method: 'get',
+            preserveScroll: true,
+            preserveState: true,
+            data: {
+                casino_id: casino,
+                sucursal_id: sucursal,
+            },
+        })
+    }
 )
 
 
@@ -221,18 +221,18 @@ watchEffect(() => {
 })
 
 const confirmarLecturas = () => {
-  if (!confirm('¿Deseas confirmar todas las lecturas pendientes?')) return
+    if (!confirm('¿Deseas confirmar todas las lecturas pendientes?')) return
 
-  router.post('/lecturas/confirmar', {
-    sucursal_id: form.sucursal_id // <-- se enviará solo si es master o casino_admin
-  }, {
-    onSuccess: () => {
-      toast.success('Lecturas confirmadas correctamente.')
-    },
-    onError: (errors) => {
-      toast.error(errors.lecturas ?? 'Error al confirmar lecturas')
-    }
-  })
+    router.post('/lecturas/confirmar', {
+        sucursal_id: form.sucursal_id // <-- se enviará solo si es master o casino_admin
+    }, {
+        onSuccess: () => {
+            toast.success('Lecturas confirmadas correctamente.')
+        },
+        onError: (errors) => {
+            toast.error(errors.lecturas ?? 'Error al confirmar lecturas')
+        }
+    })
 }
 
 </script>
@@ -301,7 +301,7 @@ const confirmarLecturas = () => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                    }}</SelectItem>
+                                        }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -317,10 +317,8 @@ const confirmarLecturas = () => {
                                 <ComboboxTrigger as-child class="border w-full">
                                     <Button variant="outline" class="justify-between w-full">
                                         <template v-if="maquinaSeleccionada">
-                                            {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }} (Valor
-                                            Ficha::
-                                            {{
-                                                formatNumber(maquinaSeleccionada.denominacion) }})
+                                            {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }} • Den: {{
+                                                formatNumber(maquinaSeleccionada.denominacion) }}
                                         </template>
                                         <template v-else>
                                             Seleccione máquina
@@ -345,7 +343,13 @@ const confirmarLecturas = () => {
 
                                 <ComboboxGroup>
                                     <ComboboxItem v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
-                                        {{ m.ndi }} - {{ m.nombre }} (Valor Ficha: {{ m.denominacion }})
+
+                                        <div>
+                                            <p class="font-semibold text-slate-200">
+                                                {{ m.ndi }} — {{ m.nombre }} • Den: {{ formatNumber(maquinaSeleccionada.denominacion) }}
+                                            </p>                                            
+                                        </div>
+                                        
                                         <ComboboxItemIndicator>
                                             <Check class="ml-auto h-4 w-4" />
                                         </ComboboxItemIndicator>
@@ -462,7 +466,7 @@ const confirmarLecturas = () => {
                         <TableBody>
                             <TableRow v-for="l in lecturas.data" :key="l.id">
                                 <!-- <TableCell>{{ l.id }}</TableCell> -->
-                                 <TableCell>{{ l.maquina?.ndi }}</TableCell>
+                                <TableCell>{{ l.maquina?.ndi }}</TableCell>
                                 <TableCell>{{ l.maquina?.nombre }}</TableCell>
                                 <TableCell>{{ formatNumber(l.entrada) }}</TableCell>
                                 <!-- <TableCell>{{ l.sucursal?.nombre }}</TableCell> -->
