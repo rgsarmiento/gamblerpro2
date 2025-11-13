@@ -83,19 +83,19 @@ const mainNavItems: NavItem[] = [
                 title: 'Casinos',
                 href: '/casinos',
                 icon: Building2,
-                roles: ['master_admin'],
+                roles: ['master_admin', 'casino_admin'],
             },
             {
                 title: 'Sucursales',
                 href: '/sucursales',
                 icon: Store,
-                roles: ['master_admin'],
+                roles: ['master_admin', 'casino_admin'],
             },
             {
                 title: 'Usuarios',
                 href: '/usuarios',
                 icon: Monitor,
-                roles: ['master_admin'],
+                //roles: ['master_admin', 'casino_admin'],
             },            
         ]
     },
