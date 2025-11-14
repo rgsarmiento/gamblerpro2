@@ -259,7 +259,7 @@ const exportTablaSecundaria = () => {
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm">Maquinas</label>
+                            <label class="text-sm font-semibold text-slate-300">Maquinas</label>                            
                             <Combobox v-model="form.maquina_id" by="id" class="w-full">
                                 <ComboboxAnchor as-child>
                                     <ComboboxTrigger as-child class="border w-full">
@@ -460,35 +460,6 @@ const exportTablaSecundaria = () => {
                 </div>
             </div>
 
-            <!-- Gastos por tipo -->
-            <div class="p-4 rounded-lg shadow border 
-            bg-gradient-to-br from-rose-600/30 to-rose-900/20 
-            border-rose-500/40">
-
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-semibold">Gastos agrupados por tipo</h2>
-                    <button @click="exportGastosTipo" class="text-sm px-3 py-1 rounded border">Exportar</button>
-                </div>
-                <div class="overflow-auto">
-                    <table class="min-w-[520px] w-full text-sm">
-                        <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">Tipo</th>
-                                <th class="py-2">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="g in props.gastosPorTipo" :key="g.tipo" class="border-b">
-                                <td class="py-2">{{ g.tipo }}</td>
-                                <td class="py-2">{{ money(g.total) }}</td>
-                            </tr>
-                            <tr v-if="!props.gastosPorTipo.length">
-                                <td colspan="2" class="py-2 text-center text-muted-foreground">Sin datos</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
             <!-- Tabla principal (según modo) -->
             <div class="p-4 rounded-lg shadow border 
@@ -600,6 +571,41 @@ const exportTablaSecundaria = () => {
                     </table>
                 </div>
             </div>
+
+
+            <!-- Gastos por tipo -->
+            <div class="p-4 rounded-lg shadow border 
+            bg-gradient-to-br from-rose-600/30 to-rose-900/20 
+            border-rose-500/40">
+
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold">Gastos agrupados por tipo</h2>
+                    <button @click="exportGastosTipo" class="text-sm px-3 py-1 rounded border">Exportar</button>
+                </div>
+                <div class="overflow-auto">
+                    <table class="min-w-[520px] w-full text-sm">
+                        <thead>
+                            <tr class="text-left border-b">
+                                <th class="py-2">Fecha</th>
+                                <th class="py-2">Tipo</th>
+                                <th class="py-2">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="g in props.gastosPorTipo" :key="g.tipo" class="border-b">
+                                <td class="py-2">{{ g.fecha }}</td>
+                                <td class="py-2">{{ g.tipo }}</td>
+                                <td class="py-2">{{ money(g.total) }}</td>
+                            </tr>
+                            <tr v-if="!props.gastosPorTipo.length">
+                                <td colspan="2" class="py-2 text-center text-muted-foreground">Sin datos</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            
 
             <!-- Tabla secundaria (por usuario en sucursal o máquina) -->
             <div v-if="props.tablaSecundaria?.length" class="bg-card rounded-xl border p-4">

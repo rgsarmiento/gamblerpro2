@@ -21,8 +21,16 @@ class ReportesController extends Controller
     {
         $user = $req->user();
 
+        // 🔹 Determinar modo inicial según el rol
+        $modoDefault = 'all_casinos'; // por defecto
+        if ($user->hasRole('casino_admin')) {
+            $modoDefault = 'casino';
+        } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+            $modoDefault = 'sucursal';
+        }
+
         // UI mode: all_casinos | casino | sucursal | maquina
-        $mode = $req->get('mode', 'all_casinos');
+        $mode = $req->get('mode', $modoDefault); // 👈 Usa el modo según rol
 
         // Rango de fechas (misma lógica de Dashboard)
         [$inicio, $fin] = $this->resolverRango($req);
@@ -106,9 +114,9 @@ class ReportesController extends Controller
         // Gastos agrupados por tipo
         // ============================
         $gastosPorTipo = (clone $gastosBase)
-            ->selectRaw('tipos_gasto.nombre AS tipo, SUM(gastos.valor) AS total')
+            ->selectRaw('gastos.fecha, tipos_gasto.nombre AS tipo, SUM(gastos.valor) AS total')
             ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
-            ->groupBy('tipos_gasto.nombre')
+            ->groupBy('gastos.fecha', 'tipos_gasto.nombre')
             ->orderByDesc('total')
             ->get();
 
@@ -174,21 +182,44 @@ class ReportesController extends Controller
 
             case 'sucursal':
                 // (maquina, entrada, salida, jackpots, neto_final, neto_inicial, creditos, recaudo)
+                // 🔹 Ordenar por NDI (alfanumérico natural)
+                // 🔹 Ordenar por NDI (alfanumérico natural)
                 $porMaquina = (clone $lecturasBase)
                     ->selectRaw("
-                        CONCAT(maquinas.ndi,' - ',maquinas.nombre) AS maquina,
-                        SUM(entrada)        AS entrada,
-                        SUM(salida)         AS salida,
-                        SUM(jackpots)       AS jackpots,
-                        SUM(neto_final)     AS neto_final,
-                        SUM(neto_inicial)   AS neto_inicial,
-                        SUM(total_creditos) AS creditos,
-                        SUM(total_recaudo)  AS recaudo
-                    ")
+            maquinas.ndi,
+            CONCAT(maquinas.ndi,' - ',maquinas.nombre) AS maquina,
+            SUM(entrada)        AS entrada,
+            SUM(salida)         AS salida,
+            SUM(jackpots)       AS jackpots,
+            SUM(neto_final)     AS neto_final,
+            SUM(neto_inicial)   AS neto_inicial,
+            SUM(total_creditos) AS creditos,
+            SUM(total_recaudo)  AS recaudo
+        ")
                     ->join('maquinas', 'maquinas.id', '=', 'lecturas_maquinas.maquina_id')
-                    ->groupBy('maquina')
-                    ->orderByDesc('recaudo')
-                    ->get();
+                    ->groupBy('maquinas.ndi', 'maquina')
+                    ->get()
+                    ->sort(function ($a, $b) {
+                        // Ordenamiento natural: números primero, luego strings
+                        $aNdi = $a->ndi;
+                        $bNdi = $b->ndi;
+
+                        $aIsNumeric = is_numeric($aNdi);
+                        $bIsNumeric = is_numeric($bNdi);
+
+                        // Si uno es numérico y el otro no, el numérico va primero
+                        if ($aIsNumeric && !$bIsNumeric) return -1;
+                        if (!$aIsNumeric && $bIsNumeric) return 1;
+
+                        // Si ambos son numéricos, comparar como números
+                        if ($aIsNumeric && $bIsNumeric) {
+                            return (float)$aNdi <=> (float)$bNdi;
+                        }
+
+                        // Si ambos son strings, comparar naturalmente
+                        return strnatcasecmp($aNdi, $bNdi);
+                    })
+                    ->values(); // reindexar
 
                 // (usuario, neto_final, neto_inicial, creditos, recaudo, %)
                 $porUsuario = (clone $lecturasBase)

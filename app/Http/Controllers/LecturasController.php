@@ -23,28 +23,43 @@ class LecturasController extends Controller
         $q = LecturaMaquina::with(['maquina:id,ndi,nombre,denominacion', 'sucursal:id,nombre,casino_id'])
             ->orderByDesc('fecha');
 
-        // 🔹 Filtro dinámico según el rol
-        if ($user->hasRole('master_admin')) {
-            if ($req->filled('casino_id')) {
-                $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
-            }
-            if ($req->filled('sucursal_id')) {
-                $q->where('sucursal_id', $req->sucursal_id);
-            } else {
-                // 👇 si no hay sucursal seleccionada, no mostrar nada
-                $q->whereRaw('1=0');
-            }
-        } elseif ($user->hasRole('casino_admin')) {
-            $q->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+        // 🔹 Clonar query base para obtener última fecha confirmada con los mismos filtros de rol
+        $qUltimaFecha = clone $q;
 
-            if ($req->filled('sucursal_id')) {
-                $q->where('sucursal_id', $req->sucursal_id);
-            } else {
-                $q->whereRaw('1=0');
+        // 🔹 Filtro dinámico según el rol (aplicado a ambas queries)
+        $aplicarFiltrosRol = function ($query) use ($user, $req) {
+            if ($user->hasRole('master_admin')) {
+                if ($req->filled('casino_id')) {
+                    $query->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
+                }
+                if ($req->filled('sucursal_id')) {
+                    $query->where('sucursal_id', $req->sucursal_id);
+                } else {
+                    // 👇 si no hay sucursal seleccionada, no mostrar nada
+                    $query->whereRaw('1=0');
+                }
+            } elseif ($user->hasRole('casino_admin')) {
+                $query->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+
+                if ($req->filled('sucursal_id')) {
+                    $query->where('sucursal_id', $req->sucursal_id);
+                } else {
+                    $query->whereRaw('1=0');
+                }
+            } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+                $query->where('sucursal_id', $user->sucursal_id);
             }
-        } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
-            $q->where('sucursal_id', $user->sucursal_id);
-        }
+        };
+
+        // Aplicar filtros de rol a la query de última fecha confirmada
+        $aplicarFiltrosRol($qUltimaFecha);
+
+        $ultimaFechaConfirmada = $qUltimaFecha->where('confirmado', 1)
+            ->orderByDesc('fecha')
+            ->value('fecha'); // puede ser null si no existen lecturas
+
+        // Aplicar filtros de rol a la query principal
+        $aplicarFiltrosRol($q);
 
 
         // 🔹 Filtros opcionales por fecha o máquina
@@ -57,6 +72,10 @@ class LecturasController extends Controller
 
         // 🔹 Mostrar solo las lecturas pendientes (sin confirmar)
         $q->where('confirmado', 0);
+
+        // 🔹 OBTENER EL TOTAL ANTES DE PAGINAR
+        $totalRecaudado = (clone $q)->sum('total_recaudo');
+        $cantidadRegistros = (clone $q)->count();
 
         $lecturas = $q->paginate(50)->withQueryString();
 
@@ -77,9 +96,10 @@ class LecturasController extends Controller
 
         return Inertia::render('Lecturas/Index', [
             'lecturas'   => $lecturas,
+            'ultimaFechaConfirmada' => $ultimaFechaConfirmada,
             'pendientes' => $pendientes,
-            'total_registros' => $lecturas->total(),
-            'total_recaudado' => $lecturas->sum('total_recaudo'),
+            'total_registros' => $cantidadRegistros,
+            'total_recaudado' => $totalRecaudado,
             'casinos'    => $casinos,
             'sucursales' => $sucursales,
             'maquinas'   => $maquinas,
@@ -90,57 +110,148 @@ class LecturasController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    // public function store(Request $req)
+    // {
+    //     $data = $req->validate([
+    //         'sucursal_id' => 'required|integer',
+    //         'maquina_id' => 'required|integer',
+    //         'entrada' => 'required|numeric',
+    //         'salida' => 'nullable|numeric',
+    //         'jackpots' => 'nullable|numeric',
+    //         'neto_inicial' => 'required|numeric',
+    //         'neto_final' => 'required|numeric',
+    //         'total_creditos' => 'required|numeric',
+    //         'total_recaudo' => 'required|numeric',
+    //     ]);
+
+    //     // si están vacíos, poner 0
+    //     $data['salida'] = $data['salida'] ?? 0;
+    //     $data['jackpots'] = $data['jackpots'] ?? 0;
+
+    //     // Si el usuario es cajero, forzar neto_inicial con el último neto_final de la máquina
+    //     if ($req->user()->hasRole('cajero')) {
+    //         $maquina = Maquina::find($data['maquina_id']);
+    //         $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
+    //     }
+
+    //     $existe = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+    //         ->where('sucursal_id', $data['sucursal_id'])
+    //         ->where('confirmado', 0)
+    //         ->exists();
+
+    //     if ($existe) {
+    //         throw ValidationException::withMessages([
+    //             'maquina_id' => 'Ya existe una lectura para esta máquina.',
+    //         ]);
+    //     }
+
+    //     $existeAnterior = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+    //         ->where('sucursal_id', $data['sucursal_id'])
+    //         ->where('confirmado', 1)
+    //         ->whereDate('fecha', now())
+    //         ->exists();
+
+    //     if ($existeAnterior) {
+    //         throw ValidationException::withMessages([
+    //             'maquina_id' => 'Ya existe una lectura cerrada para esta máquina en esta fecha.',
+    //         ]);
+    //     }
+
+    //     LecturaMaquina::create($data + [
+    //         'user_id' => $req->user()->id,
+    //         'fecha' => now(),
+    //     ]);
+
+
+    //     // 🔄 Actualizar el último neto final de la máquina
+    //     $maquina = Maquina::find($data['maquina_id']);
+    //     if ($maquina) {
+    //         $maquina->ultimo_neto_final = $data['neto_final'];
+    //         $maquina->save();
+    //     }
+
+    //     return redirect()->back()->with('success', 'Lectura registrada exitosamente');
+    // }
+
+
     public function store(Request $req)
-    {
-        $data = $req->validate([
-            'sucursal_id' => 'required|integer',
-            'maquina_id' => 'required|integer',
-            'entrada' => 'required|numeric',
-            'salida' => 'nullable|numeric',
-            'jackpots' => 'nullable|numeric',
-            'neto_inicial' => 'required|numeric',
-            'neto_final' => 'required|numeric',
-            'total_creditos' => 'required|numeric',
-            'total_recaudo' => 'required|numeric',
+{
+    // 1️⃣ Validar entrada, incluyendo la fecha
+    $data = $req->validate([
+        'sucursal_id' => 'required|integer',
+        'maquina_id' => 'required|integer',
+        'fecha' => 'required|date',
+        'entrada' => 'required|numeric',
+        'salida' => 'nullable|numeric',
+        'jackpots' => 'nullable|numeric',
+        'neto_inicial' => 'required|numeric',
+        'neto_final' => 'required|numeric',
+        'total_creditos' => 'required|numeric',
+        'total_recaudo' => 'required|numeric',
+    ]);
+
+    // 2️⃣ Si están vacíos, poner 0
+    $data['salida'] = $data['salida'] ?? 0;
+    $data['jackpots'] = $data['jackpots'] ?? 0;
+
+    $maquina = Maquina::findOrFail($data['maquina_id']);
+
+    // 3️⃣ Validar que la fecha no sea anterior al último cierre de esa máquina
+    $ultimaConfirmada = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+        ->where('sucursal_id', $data['sucursal_id'])
+        ->where('confirmado', 1)
+        ->orderByDesc('fecha')
+        ->value('fecha');
+
+    if ($ultimaConfirmada && $data['fecha'] < $ultimaConfirmada) {
+        throw ValidationException::withMessages([
+            'fecha' => "No puedes registrar lecturas antes de la última fecha confirmada ($ultimaConfirmada).",
         ]);
-
-        // si están vacíos, poner 0
-        $data['salida'] = $data['salida'] ?? 0;
-        $data['jackpots'] = $data['jackpots'] ?? 0;
-
-        // Si el usuario es cajero, forzar neto_inicial con el último neto_final de la máquina
-        if ($req->user()->hasRole('cajero')) {
-            $maquina = Maquina::find($data['maquina_id']);
-            $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
-        }
-
-        $existe = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-            ->where('sucursal_id', $data['sucursal_id'])
-            ->where('confirmado', 0)
-            ->exists();
-
-        if ($existe) {
-            throw ValidationException::withMessages([
-                'maquina_id' => 'Ya existe una lectura para esta máquina.',
-            ]);
-        }
-
-
-        LecturaMaquina::create($data + [
-            'user_id' => $req->user()->id,
-            'fecha' => now(),
-        ]);
-
-
-        // 🔄 Actualizar el último neto final de la máquina
-        $maquina = Maquina::find($data['maquina_id']);
-        if ($maquina) {
-            $maquina->ultimo_neto_final = $data['neto_final'];
-            $maquina->save();
-        }
-
-        return redirect()->back()->with('success', 'Lectura registrada exitosamente');
     }
+
+    // 4️⃣ Si el usuario es cajero, se recalcula el neto inicial al último neto final
+    if ($req->user()->hasRole('cajero')) {
+        $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
+    }
+
+    // 5️⃣ Verificar duplicados NO confirmados (pendientes)
+    $existePendiente = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+        ->where('sucursal_id', $data['sucursal_id'])
+        ->where('confirmado', 0)
+        ->exists();
+
+    if ($existePendiente) {
+        throw ValidationException::withMessages([
+            'maquina_id' => 'Ya existe una lectura pendiente para esta máquina.',
+        ]);
+    }
+
+    // 6️⃣ Verificar si ya existe una lectura confirmada en la MISMA FECHA
+    $existeConfirmadaMismaFecha = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+        ->where('sucursal_id', $data['sucursal_id'])
+        ->where('confirmado', 1)
+        ->whereDate('fecha', $data['fecha'])
+        ->exists();
+
+    if ($existeConfirmadaMismaFecha) {
+        throw ValidationException::withMessages([
+            'fecha' => "Ya existe una lectura confirmada para esta máquina en la fecha {$data['fecha']}.",
+        ]);
+    }
+
+    // 7️⃣ Guardar lectura con la fecha seleccionada (NO usar now())
+    $lectura = LecturaMaquina::create($data + [
+        'user_id' => $req->user()->id,
+    ]);
+
+    // 8️⃣ Actualizar el último neto final de la máquina
+    $maquina->ultimo_neto_final = $data['neto_final'];
+    $maquina->save();
+
+    return redirect()->back()->with('success', 'Lectura registrada exitosamente');
+}
+
+
 
     /**
      * Display the specified resource.

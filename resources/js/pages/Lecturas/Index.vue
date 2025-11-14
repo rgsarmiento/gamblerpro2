@@ -58,6 +58,7 @@ const form = useForm({
     entrada: '',
     salida: '',
     jackpots: '',
+    fecha: new Date().toISOString().split("T")[0], // ⬅️ FECHA INICIAL
     neto_inicial: 0,
     neto_final: 0,
     total_creditos: 0,
@@ -67,6 +68,7 @@ const form = useForm({
 // Props desde Laravel
 const props = defineProps<{
     lecturas: any
+    ultimaFechaConfirmada: string | null
     pendientes: boolean
     total_registros: number
     total_recaudado: number
@@ -75,6 +77,16 @@ const props = defineProps<{
     maquinas: Array<{ id: number; ndi: string; nombre: string; denominacion: number; sucursal_id: number; ultimo_neto_final: number }>
     user: { id: number, name: string, roles: string[], sucursal_id?: number, casino_id?: number }
 }>()
+
+// Si no existe una lectura previa → permitir hoy como mínimo
+const minFecha = computed(() => {
+    if (!props.ultimaFechaConfirmada) {
+        return new Date().toISOString().split("T")[0]
+    }
+
+    // convertir a YYYY-MM-DD
+    return props.ultimaFechaConfirmada.substring(0, 10)
+})
 
 // Inicializar casino y sucursal del usuario logueado
 if (props.user.roles.includes('cajero') || props.user.roles.includes('sucursal_admin')) {
@@ -270,6 +282,15 @@ const confirmarLecturas = () => {
             })
                 " class="space-y-4 bg-card p-4 rounded">
 
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Fecha de Lectura</label>
+                        <input type="date" v-model="form.fecha" :min="minFecha"
+                            class="border rounded px-2 py-1 w-full" />
+                    </div>
+                </div>
+
+
                 <!-- Select casino (solo para master_admin) -->
                 <div class="grid grid-cols-2 gap-4">
                     <div v-if="role === 'master_admin'">
@@ -301,7 +322,7 @@ const confirmarLecturas = () => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                        }}</SelectItem>
+                                    }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -347,9 +368,9 @@ const confirmarLecturas = () => {
                                         <div>
                                             <p class="font-semibold">
                                                 {{ m.ndi }} — {{ m.nombre }} • Den: {{ formatNumber(m.denominacion) }}
-                                            </p>                                            
+                                            </p>
                                         </div>
-                                        
+
                                         <ComboboxItemIndicator>
                                             <Check class="ml-auto h-4 w-4" />
                                         </ComboboxItemIndicator>
