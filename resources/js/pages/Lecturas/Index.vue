@@ -345,7 +345,7 @@ const confirmarLecturas = () => {
                                     <ComboboxItem v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
 
                                         <div>
-                                            <p class="font-semibold text-slate-200">
+                                            <p class="font-semibold">
                                                 {{ m.ndi }} — {{ m.nombre }} • Den: {{ formatNumber(m.denominacion) }}
                                             </p>                                            
                                         </div>
