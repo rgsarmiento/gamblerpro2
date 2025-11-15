@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 
 import {
     Select,
@@ -25,7 +26,7 @@ interface LinkItem { url: string | null; label: string; active: boolean }
 interface Paginator<T> { data: T[]; links: LinkItem[]; total: number }
 interface Casino { id: number; nombre: string }
 interface Sucursal { id: number; nombre: string; casino_id: number }
-interface Maquina { id: number; ndi: string; nombre: string; denominacion: number; sucursal_id: number; sucursal?: { nombre: string }; activa: number }
+interface Maquina { id: number; ndi: string; nombre: string; denominacion: number; codigo_interno: string; sucursal_id: number; sucursal?: { nombre: string }; activa: number }
 interface Filters { search?: string; casino_id?: number | null; sucursal_id?: number | null }
 interface User { id: number; roles: string[]; casino_id?: number | null; sucursal_id?: number | null }
 
@@ -65,7 +66,6 @@ watch([search, selectedCasino, selectedSucursal], ([s, c, su]) => {
   }, { preserveState: true, replace: true })
 })
 
-
 // Rol activo
 const role = computed(() => props.user.roles[0] ?? '')
 
@@ -80,11 +80,15 @@ const form = useForm({
     sucursal_id: '',
 })
 
-
 const isEditing = ref(false)
 const editingId = ref<number | null>(null)
 
-
+/* ======================
+   Fijar sucursal si es sucursal_admin
+====================== */
+if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
+    form.sucursal_id = String(props.user.sucursal_id)
+}
 
 /* ======================
    Funciones CRUD
@@ -104,6 +108,11 @@ const reset = () => {
     editingId.value = null
     form.reset()
     form.clearErrors()
+    
+    // Restaurar sucursal_id si es sucursal_admin
+    if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
+        form.sucursal_id = String(props.user.sucursal_id)
+    }
 }
 
 const save = () => {
@@ -113,6 +122,11 @@ const save = () => {
                 toast.success('Máquina actualizada correctamente')
                 reset()
             },
+            onError: (errors) => {
+                toast.error('Error al actualizar', {
+                    description: Object.values(errors).flat().join(', ')
+                })
+            }
         })
     } else {
         form.post('/maquinas', {
@@ -120,6 +134,11 @@ const save = () => {
                 toast.success('Máquina creada correctamente')
                 reset()
             },
+            onError: (errors) => {
+                toast.error('Error al crear máquina', {
+                    description: Object.values(errors).flat().join(', ')
+                })
+            }
         })
     }
 }
@@ -136,19 +155,6 @@ const deleteMaquina = (id: number) => {
 /* ======================
    Activar / Desactivar
 ====================== */
-// const toggleActivo = (m: Maquina) => {
-//     const nuevoEstado = m.activa === 1 ? 0 : 1
-//     router.patch(`/maquinas/${m.id}/toggle`, { activa: nuevoEstado }, {
-//         preserveScroll: true,
-//         onSuccess: () => {
-//             toast.success(`Máquina ${nuevoEstado ? 'activada' : 'desactivada'}`)
-//             router.reload({ only: ['maquinas'] })
-//         },
-//         onError: () => toast.error('Error al actualizar estado'),
-//     })
-// }
-
-
 const toggleActivo = (maquina, nuevoEstado) => {
     const estadoAnterior = maquina.activa
     maquina.activa = nuevoEstado ? 1 : 0
@@ -157,67 +163,60 @@ const toggleActivo = (maquina, nuevoEstado) => {
         preserveScroll: true,
         onSuccess: () => {
             toast.success('Estado actualizado', {
-                description: `La ${maquina.nombre} ahora está ${nuevoEstado ? 'activa' : 'inactivo'}.`,
+                description: `La ${maquina.nombre} ahora está ${nuevoEstado ? 'activa' : 'inactiva'}.`,
             })
         },
         onError: () => {
             maquina.activa = estadoAnterior
             toast.error('Error al actualizar el estado', {
-                description: 'No se pudo cambiar el estado de la maquina.',
+                description: 'No se pudo cambiar el estado de la máquina.',
             })
         },
     })
 }
 
-
-
-
-/* ======================
-   Fijar sucursal si es sucursal_admin
-====================== */
-if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
-    form.sucursal_id = String(props.user.sucursal_id)
-}
+// Computed para las sucursales del formulario
+const sucursalesFormulario = computed(() => {
+    if (props.user.roles.includes('sucursal_admin')) {
+        return props.sucursales.filter(s => s.id === props.user.sucursal_id)
+    }
+    return props.sucursales
+})
 </script>
 
 <template>
-
     <Head title="Máquinas" />
 
     <AppLayout>
-
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-
             
-
             <!-- Título y botón -->
             <div class="flex justify-between items-center mb-4">
-                <h1 class="text-xl font-bold">🎰 Máquinas</h1>
-                <Button @click="reset" class="bg-indigo-600 text-white">Nueva máquina</Button>
+                <h1 class="text-xl font-bold">🎰 Máquinas</h1>                
             </div>
 
-            
-
-            <div v-if="role === 'master_admin' || role === 'casino_admin'" class="bg-card rounded-lg shadow border border-border  grid grid-cols-4 gap-4 p-4  mb-6">
+            <!-- Filtros -->
+            <div v-if="role === 'master_admin' || role === 'casino_admin'" class="bg-card rounded-lg shadow border border-border grid grid-cols-4 gap-4 p-4 mb-6">
                 <div v-if="role === 'master_admin'">
-                        <label class="block text-sm">Casino</label>
-                        <Select v-model="selectedCasino" class=" w-full">
-                            <SelectTrigger class="border w-full">
-                                <SelectValue placeholder="Seleccione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectLabel>Casinos</SelectLabel>
-                                    <SelectItem v-for="c in props.casinos" :key="c.id" :value="c.id">{{ c.nombre }}
-                                    </SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <label class="block text-sm mb-1">Casino</label>
+                    <Select v-model="selectedCasino" class="w-full">
+                        <SelectTrigger class="border w-full">
+                            <SelectValue placeholder="Seleccione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectLabel>Casinos</SelectLabel>
+                                <SelectItem v-for="c in props.casinos" :key="c.id" :value="c.id">
+                                    {{ c.nombre }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </div>
                 
-                <div >
-                    <label class="block text-sm">Sucursal</label>
-                    <Select v-model="selectedSucursal" class=" w-full">
+                <div>
+                    <label class="block text-sm mb-1">Sucursal</label>
+                    <Select v-model="form.sucursal_id" class="w-full">
                         <SelectTrigger class="border w-full">
                             <SelectValue placeholder="Seleccione..." />
                         </SelectTrigger>
@@ -225,23 +224,63 @@ if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
                             <SelectGroup>
                                 <SelectLabel>Sucursales</SelectLabel>
                                 <SelectItem v-for="s in (props.user.roles.includes('master_admin') ? sucursalesFiltradas : props.sucursales)" :key="s.id" :value="s.id">
-            {{ s.nombre }}{{ s.nombre
-                                }}</SelectItem>
+                                    {{ s.nombre }}
+                                </SelectItem>
                             </SelectGroup>
                         </SelectContent>
                     </Select>
+                    <span v-if="form.errors.sucursal_id" class="text-xs text-red-500">{{ form.errors.sucursal_id }}</span>
                 </div>
             </div>
+           
 
             <!-- Formulario -->
-            <form @submit.prevent="save" class="grid grid-cols-4 gap-4 bg-card p-4 rounded mb-6">
-                <input v-model="form.nombre" placeholder="Nombre" class="border p-2 rounded" />
-                <input v-model="form.ndi" placeholder="NDI" class="border p-2 rounded" />
-                <input v-model="form.denominacion" type="number" placeholder="Denominación"
-                    class="border p-2 rounded" />
-                <input v-model="form.codigo_interno" placeholder="Código interno" class="border p-2 rounded" />
+            <form @submit.prevent="save" class="grid grid-cols-4 gap-4 bg-card p-4 rounded mb-6 border border-border">
+                <div class="col-span-4 mb-2">
+                    <h3 class="font-semibold text-lg">
+                        {{ isEditing ? '✏️ Editar máquina' : '➕ Nueva máquina' }}
+                    </h3>
+                </div>
 
-                <Button type="submit" class="col-span-4 bg-indigo-600 text-white">Guardar</Button>
+                <div>
+                    <label class="block text-sm mb-1">Nombre *</label>
+                    <Input v-model="form.nombre" placeholder="Nombre de la máquina" 
+                           :class="{ 'border-red-500': form.errors.nombre }" />
+                    <span v-if="form.errors.nombre" class="text-xs text-red-500">{{ form.errors.nombre }}</span>
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-1">NDI *</label>
+                    <Input v-model="form.ndi" placeholder="NDI único" 
+                           :class="{ 'border-red-500': form.errors.ndi }" />
+                    <span v-if="form.errors.ndi" class="text-xs text-red-500">{{ form.errors.ndi }}</span>
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-1">Denominación *</label>
+                    <Input v-model="form.denominacion" type="number" step="0.01" placeholder="1000" 
+                           :class="{ 'border-red-500': form.errors.denominacion }" />
+                    <span v-if="form.errors.denominacion" class="text-xs text-red-500">{{ form.errors.denominacion }}</span>
+                </div>
+
+                <div>
+                    <label class="block text-sm mb-1">Serial</label>
+                    <Input v-model="form.codigo_interno" placeholder="Serial (opcional)" />
+                </div>
+
+                
+
+                <div class="col-span-4 flex gap-2">
+                    <Button type="submit" class="bg-indigo-600 text-white" :disabled="form.processing">
+                        {{ form.processing ? 'Guardando...' : 'Guardar' }}
+                    </Button>
+                    <!-- <Button @click="reset" class="bg-orange-300 text-white">
+                        limpiar Campos
+                    </Button> -->
+                    <Button v-if="isEditing" type="button" variant="outline" @click="reset">
+                        Cancelar
+                    </Button>
+                </div>
             </form>
 
             <!-- Buscador -->
@@ -279,15 +318,13 @@ if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
                                     <Badge :variant="m.activa ? 'default' : 'secondary'" class="capitalize">
                                         {{ m.activa ? 'Activo' : 'Inactivo' }}
                                     </Badge>
-
                                 </div>
                             </TableCell>
 
                             <TableCell>
                                 <div class="flex gap-2">
                                     <Button variant="outline" size="sm" @click="openEdit(m)">Editar</Button>
-                                    <Button variant="destructive" size="sm"
-                                        @click="deleteMaquina(m.id)">Eliminar</Button>
+                                    <Button variant="destructive" size="sm" @click="deleteMaquina(m.id)">Eliminar</Button>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -295,17 +332,17 @@ if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
                 </Table>
             </div>
 
-            <!-- 🔹 Paginación -->
+            <!-- Paginación -->
             <div class="flex gap-2 mt-4 justify-end">
-                <a v-for="link in props.maquinas.links" :key="link.label" v-html="link.label" :href="link.url ?? '#'"
-                    :class="[
-                        'px-3 py-1 rounded text-sm',
-                        link.active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    ]" />
+                <a v-for="link in props.maquinas.links" :key="link.label" v-html="link.label" 
+                   :href="link.url ?? '#'"
+                   :class="[
+                       'px-3 py-1 rounded text-sm',
+                       link.active
+                           ? 'bg-primary text-primary-foreground'
+                           : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                   ]" />
             </div>
         </div>
-
     </AppLayout>
 </template>

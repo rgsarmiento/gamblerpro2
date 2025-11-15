@@ -79,30 +79,37 @@ class MaquinasController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
-            'ndi' => 'required|string|max:255|unique:maquinas,ndi',
-            'denominacion' => 'required|numeric|min:1',
-            'sucursal_id' => 'required|exists:sucursales,id',
-        ]);
+{
+    $validated = $request->validate([
+        'nombre' => 'required|string|max:255',
+        'ndi' => 'required|string|max:255|unique:maquinas,ndi',
+        'denominacion' => 'required|numeric|min:1',
+        'sucursal_id' => 'required|exists:sucursales,id',
+    ], [
+        'ndi.unique' => 'Ya existe una máquina con este NDI',
+        'ndi.required' => 'El campo ndi es obligatorio.',
+        'nombre.required' => 'El campo nombre es obligatorio.',
+        'denominacion.required' => 'El campo denominacion es obligatorio.',
+        'sucursal_id.required' => 'Debe seleccionar una sucursal',
+    ]);
 
-        $user = $request->user();
+    $user = $request->user();
 
-        // 🔹 Validar que la sucursal le pertenece (solo para casino/sucursal_admin)
-        if ($user->hasRole('casino_admin') && $user->casino_id !== Sucursal::find($validated['sucursal_id'])->casino_id) {
-            abort(403, 'No puedes crear máquinas en otras casinos.');
-        }
-
-        if ($user->hasRole('sucursal_admin') && $user->sucursal_id != $validated['sucursal_id']) {
-            abort(403, 'No puedes crear máquinas en otras sucursales.');
-        }
-
-        Maquina::create($validated + ['ultimo_neto_final' => 0]);
-
-        return back()->with('success', 'Máquina creada correctamente');
+    // Validar que la sucursal le pertenece
+    $sucursal = Sucursal::find($validated['sucursal_id']);
+    
+    if ($user->hasRole('casino_admin') && $user->casino_id !== $sucursal->casino_id) {
+        return back()->withErrors(['sucursal_id' => 'No puedes crear máquinas en otros casinos.']);
     }
 
+    if ($user->hasRole('sucursal_admin') && $user->sucursal_id != $validated['sucursal_id']) {
+        return back()->withErrors(['sucursal_id' => 'No puedes crear máquinas en otras sucursales.']);
+    }
+
+    Maquina::create($validated + ['ultimo_neto_final' => 0]);
+
+    return back()->with('success', 'Máquina creada correctamente');
+}
     /**
      * Display the specified resource.
      */

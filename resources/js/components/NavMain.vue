@@ -27,25 +27,25 @@ const user = computed(() => page.props.auth?.user)
 const rolesUsuario = computed<string[]>(() => {
     const roles = (user.value as any)?.roles ?? []
     const roleNames = roles.map((r: any) => r.name)
-    console.log('🔐 Roles del usuario:', roleNames)
+    //console.log('🔐 Roles del usuario:', roleNames)
     return roleNames
 })
 
 /** 🔹 Función de permisos por rol */
 function tieneAcceso(item: NavItem): boolean {  
-    console.log(`🔍 Verificando acceso para "${item.title}":`, {
-        rolesRequeridos: item.roles,
-        rolesUsuario: rolesUsuario.value,
-        tieneRoles: !item.roles || item.roles.length === 0,
-    })
+    // console.log(`🔍 Verificando acceso para "${item.title}":`, {
+    //     rolesRequeridos: item.roles,
+    //     rolesUsuario: rolesUsuario.value,
+    //     tieneRoles: !item.roles || item.roles.length === 0,
+    // })
     
     if (!item.roles || item.roles.length === 0) {
-        console.log(`✅ "${item.title}" - Acceso público`)
+        //console.log(`✅ "${item.title}" - Acceso público`)
         return true
     }
     
     const tienePermiso = item.roles.some(r => rolesUsuario.value.includes(r))
-    console.log(`${tienePermiso ? '✅' : '❌'} "${item.title}" - Permiso: ${tienePermiso}`)
+    //console.log(`${tienePermiso ? '✅' : '❌'} "${item.title}" - Permiso: ${tienePermiso}`)
     return tienePermiso
 }
 
