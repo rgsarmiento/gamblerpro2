@@ -55,6 +55,8 @@ Route::middleware(['auth', 'verified', 'role:master_admin|casino_admin|sucursal_
     Route::delete('/maquinas/{maquina}', [MaquinasController::class, 'destroy'])->name('maquinas.destroy');
     Route::patch('/maquinas/{maquina}/toggle', [MaquinasController::class, 'toggle'])->name('maquinas.toggle');
 
+    Route::patch('/maquinas/{maquina}/transfer', [MaquinasController::class, 'transfer'])->name('maquinas.transfer');
+
 });
 
 

@@ -96,12 +96,14 @@ class MaquinasController extends Controller
             'ndi' => 'required|string|max:255|unique:maquinas,ndi',
             'denominacion' => 'required|numeric|min:1',
             'sucursal_id' => 'required|exists:sucursales,id',
+            'ultimo_neto_final' => 'nullable|numeric|min:0', // 👈 Agregar validación
         ], [
             'ndi.unique' => 'Ya existe una máquina con este NDI',
             'ndi.required' => 'El campo ndi es obligatorio.',
             'nombre.required' => 'El campo nombre es obligatorio.',
             'denominacion.required' => 'El campo denominacion es obligatorio.',
             'sucursal_id.required' => 'Debe seleccionar una sucursal',
+            'ultimo_neto_final.numeric' => 'El último neto final debe ser un número.',
         ]);
 
         $user = $request->user();
@@ -117,7 +119,10 @@ class MaquinasController extends Controller
             return back()->withErrors(['sucursal_id' => 'No puedes crear máquinas en otras sucursales.']);
         }
 
-        Maquina::create($validated + ['ultimo_neto_final' => 0]);
+        // Si no viene ultimo_neto_final, usar 0 por defecto
+        $validated['ultimo_neto_final'] = $validated['ultimo_neto_final'] ?? 0;
+
+        Maquina::create($validated);
 
         return back()->with('success', 'Máquina creada correctamente');
     }
@@ -139,6 +144,9 @@ class MaquinasController extends Controller
             'ndi' => 'required|string|max:255|unique:maquinas,ndi,' . $maquina->id,
             'denominacion' => 'required|numeric|min:1',
             'sucursal_id' => 'required|exists:sucursales,id',
+            'ultimo_neto_final' => 'nullable|numeric|min:0', // 👈 Agregar validación
+        ], [
+            'ultimo_neto_final.numeric' => 'El último neto final debe ser un número.',
         ]);
 
         $user = $request->user();
@@ -191,5 +199,40 @@ class MaquinasController extends Controller
         $maquina->delete();
 
         return back()->with('success', 'Máquina eliminada correctamente');
+    }
+
+
+    public function transfer(Request $request, Maquina $maquina)
+    {
+        $validated = $request->validate([
+            'nueva_sucursal_id' => 'required|exists:sucursales,id|different:' . $maquina->sucursal_id,
+        ], [
+            'nueva_sucursal_id.required' => 'Debe seleccionar una sucursal',
+            'nueva_sucursal_id.different' => 'Debe seleccionar una sucursal diferente',
+        ]);
+
+        $user = $request->user();
+        $nuevaSucursal = Sucursal::find($validated['nueva_sucursal_id']);
+
+        // 🔹 Validar permisos
+        if ($user->hasRole('casino_admin')) {
+            // Validar que ambas sucursales pertenezcan a su casino
+            if (
+                $user->casino_id !== $maquina->sucursal->casino_id ||
+                $user->casino_id !== $nuevaSucursal->casino_id
+            ) {
+                return back()->withErrors(['nueva_sucursal_id' => 'Solo puedes transferir entre sucursales de tu casino.']);
+            }
+        } elseif ($user->hasRole('sucursal_admin')) {
+            return back()->withErrors(['nueva_sucursal_id' => 'No tienes permisos para transferir máquinas.']);
+        }
+
+        // 🔹 Registrar la transferencia (opcional: crear tabla de historial)
+        // TransferenciaMaquina::create([...])
+
+        // 🔹 Actualizar sucursal
+        $maquina->update(['sucursal_id' => $validated['nueva_sucursal_id']]);
+
+        return back()->with('success', "Máquina transferida a {$nuevaSucursal->nombre} correctamente");
     }
 }

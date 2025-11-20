@@ -69,6 +69,7 @@ const form = useForm({
 const props = defineProps<{
     lecturas: any
     ultimaFechaConfirmada: string | null
+    lecturas_confirmadas: boolean
     pendientes: boolean
     total_registros: number
     total_recaudado: number
@@ -156,6 +157,7 @@ watch(
             data: {
                 casino_id: casino,
                 sucursal_id: sucursal,
+                fecha: form.fecha || null,
             },
         })
     }
@@ -247,6 +249,21 @@ const confirmarLecturas = () => {
     })
 }
 
+watch(() => form.fecha, (value) => {
+    if (!value) return
+
+    router.visit('/lecturas', {
+        method: 'get',
+        preserveScroll: true,
+        preserveState: true,
+        data: {
+            casino_id: form.casino_id,
+            sucursal_id: form.sucursal_id,
+            fecha: form.fecha,
+        },
+    })
+})
+
 </script>
 
 
@@ -285,8 +302,8 @@ const confirmarLecturas = () => {
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Fecha de Lectura</label>
-                        <input type="date" v-model="form.fecha" :min="minFecha"
-                            class="border rounded px-2 py-1 w-full" />
+                        <!-- <input type="date" v-model="form.fecha" :min="minFecha" -->
+                        <input type="date" v-model="form.fecha" class="border rounded px-2 py-1 w-full" />
                     </div>
                 </div>
 
@@ -322,7 +339,7 @@ const confirmarLecturas = () => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                    }}</SelectItem>
+                                        }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -433,7 +450,10 @@ const confirmarLecturas = () => {
                     <p>Total recaudado: <strong>{{ formatCurrency(totalRecaudo) }}</strong></p>
                 </div>
 
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Guardar</button>
+                <button type="submit" v-if="!(role === 'cajero' && props.lecturas_confirmadas)"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded">
+                    Guardar
+                </button>
             </form>
 
             <div class="grid grid-cols-2 gap-4 my-4">
@@ -450,18 +470,30 @@ const confirmarLecturas = () => {
             <div class="p-6 space-y-6">
                 <h1 class="text-2xl font-bold">📊 Lecturas de Máquinas</h1>
 
+                <div v-if="role === 'cajero' && props.lecturas_confirmadas"
+                    class="bg-red-500/20 border border-red-500 text-red-700 px-4 py-2 rounded mb-4">
+                    ⚠️ Las lecturas de esta fecha ya están confirmadas.
+                    No se pueden ingresar nuevas lecturas.
+                </div>
 
-                <div v-if="props.pendientes" class="flex gap-4 mb-4 justify-end">
+                <div v-if="props.pendientes && !props.lecturas_confirmadas" class="flex gap-4 mb-4 justify-end">
                     <Button class="bg-green-600 text-white hover:bg-green-700" @click="confirmarLecturas"
                         :disabled="(role === 'master_admin' || role === 'casino_admin') && !form.sucursal_id">
                         Confirmar lecturas
                     </Button>
                 </div>
 
+
                 <!-- Si no hay pendientes -->
                 <p v-else class="text-sm text-muted-foreground text-center my-4">
                     ✅ Todas las lecturas ya fueron confirmadas.
                 </p>
+
+                <div v-if="props.lecturas_confirmadas"
+                    class="bg-red-500/20 text-red-500 border border-red-500 px-4 py-2 rounded mb-4">
+                    Estas lecturas ya están confirmadas. No podrán editarse ni eliminarse,
+                    excepto por un usuario <strong>master_admin</strong>.
+                </div>
 
 
                 <!-- Tabla -->
@@ -500,7 +532,31 @@ const confirmarLecturas = () => {
                                 <TableCell>{{ l.fecha }}</TableCell>
                                 <TableCell>
 
-                                    <AlertDialog>
+                                    <!-- <AlertDialog>
+                                        <AlertDialogTrigger as-child>
+                                            <Button variant="destructive" size="sm">
+                                                <Trash2 />
+                                            </Button>
+                                        </AlertDialogTrigger>
+
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Eliminar lectura?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Esta acción eliminará la lectura permanentemente.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction @click="deleteLectura(l.id)">
+                                                    <Trash2 /> Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog> -->
+
+                                    <!-- 🔥 Si lectura NO confirmada → cualquiera puede eliminar -->
+                                    <AlertDialog v-if="l.confirmado == 0">
                                         <AlertDialogTrigger as-child>
                                             <Button variant="destructive" size="sm">
                                                 <Trash2 />
@@ -523,6 +579,36 @@ const confirmarLecturas = () => {
                                         </AlertDialogContent>
                                     </AlertDialog>
 
+                                    <!-- 🔥 SI está confirmada → SOLO master_admin puede eliminar -->
+                                    <AlertDialog v-else-if="role === 'master_admin'">
+                                        <AlertDialogTrigger as-child>
+                                            <Button variant="destructive" size="sm">
+                                                <Trash2 />
+                                            </Button>
+                                        </AlertDialogTrigger>
+
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Eliminar lectura confirmada?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Esta lectura ya fue confirmada. Solo un master_admin puede
+                                                    eliminarla.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction @click="deleteLectura(l.id)">
+                                                    <Trash2 /> Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+
+                                    <!-- 🔒 Cualquier otro rol NO puede eliminar lecturas confirmadas -->
+                                    <Button v-else variant="destructive" size="sm" disabled
+                                        class="opacity-50 cursor-not-allowed">
+                                        <Trash2 />
+                                    </Button>
 
                                 </TableCell>
                             </TableRow>

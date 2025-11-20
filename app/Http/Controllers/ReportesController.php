@@ -35,6 +35,8 @@ class ReportesController extends Controller
         // Rango de fechas (misma lógica de Dashboard)
         [$inicio, $fin] = $this->resolverRango($req);
 
+        //console([$inicio, $fin]);
+
         // Filtros jerárquicos
         $casinoId   = $req->integer('casino_id') ?: null;
         $sucursalId = $req->integer('sucursal_id') ?: null;
@@ -111,14 +113,49 @@ class ReportesController extends Controller
         ];
 
         // ============================
-        // Gastos agrupados por tipo
+        // Tabla de gastos dinámica según modo
         // ============================
-        $gastosPorTipo = (clone $gastosBase)
-            ->selectRaw('gastos.fecha, tipos_gasto.nombre AS tipo, SUM(gastos.valor) AS total')
-            ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
-            ->groupBy('gastos.fecha', 'tipos_gasto.nombre')
-            ->orderByDesc('total')
-            ->get();
+
+        switch ($mode) {
+
+            // =======================================================
+            // 1️⃣ MODOS AGRUPADOS → all_casinos y casino
+            // =======================================================
+            case 'all_casinos':
+            case 'casino':
+                $gastosPorTipo = (clone $gastosBase)
+                    ->selectRaw("
+                sucursales.nombre AS sucursal,
+                SUM(gastos.valor) AS total
+            ")
+                    ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
+                    ->groupBy('sucursales.nombre')
+                    ->orderByDesc('total')
+                    ->get();
+                break;
+
+            // =======================================================
+            // 2️⃣ MODOS DETALLADOS → sucursal y maquina
+            // =======================================================
+            case 'sucursal':
+            case 'maquina':
+            default:
+                $gastosPorTipo = (clone $gastosBase)
+                    ->selectRaw("
+                gastos.fecha,
+                sucursales.nombre AS sucursal,
+                tipos_gasto.nombre AS tipo,
+                gastos.descripcion,
+                gastos.valor AS total
+            ")
+                    ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
+                    ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
+                    ->orderByDesc('gastos.fecha')
+                    ->orderBy('sucursales.nombre')
+                    ->orderBy('tipos_gasto.nombre')
+                    ->get();
+                break;
+        }
 
         // ============================
         // Tablas según modo
@@ -278,7 +315,28 @@ class ReportesController extends Controller
         // combos
         $casinos    = Casino::select('id', 'nombre')->get();
         $sucursales = Sucursal::select('id', 'nombre', 'casino_id')->get();
-        $maquinas   = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id')->get();
+        $maquinas   = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id')->get()
+            ->sort(function ($a, $b) {
+                // Ordenamiento natural: números primero, luego strings
+                $aNdi = $a->ndi;
+                $bNdi = $b->ndi;
+
+                $aIsNumeric = is_numeric($aNdi);
+                $bIsNumeric = is_numeric($bNdi);
+
+                // Si uno es numérico y el otro no, el numérico va primero
+                if ($aIsNumeric && !$bIsNumeric) return -1;
+                if (!$aIsNumeric && $bIsNumeric) return 1;
+
+                // Si ambos son numéricos, comparar como números
+                if ($aIsNumeric && $bIsNumeric) {
+                    return (float)$aNdi <=> (float)$bNdi;
+                }
+
+                // Si ambos son strings, comparar naturalmente
+                return strnatcasecmp($aNdi, $bNdi);
+            })
+            ->values(); // reindexar
 
         return Inertia::render('Reportes/Index', [
             'mode'             => $mode,
@@ -341,8 +399,8 @@ class ReportesController extends Controller
                 $fin = $inicio;
                 break;
             case 'custom':
-                $inicio = Carbon::parse($req->input('start_date'));
-                $fin = Carbon::parse($req->input('end_date'));
+                $inicio = Carbon::parse($req->input('start_date'))->startOfDay();
+                $fin = Carbon::parse($req->input('end_date'))->endOfDay();
                 break;
             case 'last7':
                 $inicio = $hoy->copy()->subDays(6);

@@ -90,6 +90,8 @@ const maquinaSeleccionada = computed(() =>
 const actualizar = () => {
     if (form.value.range !== 'custom') {
         router.get('/reportes', form.value, { preserveState: true, replace: true })
+    } else {
+        aplicarRango()
     }
 }
 const aplicarRango = () => {
@@ -131,11 +133,39 @@ const exportResumen = () => {
     const r = [[props.resumenGlobal.neto_final, props.resumenGlobal.neto_inicial, props.resumenGlobal.creditos, props.resumenGlobal.recaudo, props.resumenGlobal.gastos, props.resumenGlobal.saldo]]
     exportar(h, r, 'resumen.xlsx')
 }
-const exportGastosTipo = () => {
-    const h = ['Tipo', 'Total']
-    const r = props.gastosPorTipo.map(g => [g.tipo, g.total])
-    exportar(h, r, 'gastos_por_tipo.xlsx')
+
+
+const exportGastos = () => {
+
+    let headings: string[] = []
+    let rows: any[] = []
+
+    // 🟣 Modo agrupado: all_casinos / casino
+    if (form.value.mode === 'all_casinos' || form.value.mode === 'casino') {
+        headings = ['Sucursal', 'Total Gastos']
+        rows = props.gastosPorTipo.map(g => [
+            g.sucursal,
+            g.total
+        ])
+    }
+
+    // 🟢 Modo detallado: sucursal / maquina
+    else {
+        headings = ['Fecha', 'Sucursal', 'Tipo', 'Descripción', 'Total']
+        rows = props.gastosPorTipo.map(g => [
+            g.fecha,
+            g.sucursal,
+            g.tipo,
+            g.descripcion,
+            g.total
+        ])
+    }
+
+    exportar(headings, rows, 'gastos.xlsx')
 }
+
+
+
 const exportTablaPrincipal = () => {
     let h: string[] = []; let r: any[] = []
     if (form.value.mode === 'all_casinos') {
@@ -161,7 +191,13 @@ const exportTablaSecundaria = () => {
 }
 
 
-
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        maximumFractionDigits: 0
+    }).format(value);
+};
 
 </script>
 
@@ -246,8 +282,8 @@ const exportTablaSecundaria = () => {
                 </div>
 
                 <!-- 🟣 Fila 3 -> Máquina -->
-                
-                    <!-- <label class="text-sm font-semibold text-slate-300">Máquina</label>
+
+                <!-- <label class="text-sm font-semibold text-slate-300">Máquina</label>
                     <select v-model="form.maquina_id" @change="actualizar" class="mt-1 w-full px-3 py-2 rounded border border-slate-600 
                    bg-slate-800 text-slate-100 focus:border-indigo-400">
                         <option value="">Todas</option>
@@ -257,25 +293,25 @@ const exportTablaSecundaria = () => {
                     </select> -->
 
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-sm font-semibold text-slate-300">Maquinas</label>                            
-                            <Combobox v-model="form.maquina_id" by="id" class="w-full">
-                                <ComboboxAnchor as-child>
-                                    <ComboboxTrigger as-child class="border w-full">
-                                        <Button variant="outline" class="justify-between w-full">
-                                            <template v-if="maquinaSeleccionada">
-                                                {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }}
-                                            </template>
-                                            <template v-else>
-                                                Seleccione máquina
-                                            </template>
-                                            <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                    </ComboboxTrigger>
-                                </ComboboxAnchor>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-semibold text-slate-300">Maquinas</label>
+                        <Combobox v-model="form.maquina_id" by="id" class="w-full">
+                            <ComboboxAnchor as-child>
+                                <ComboboxTrigger as-child class="border w-full">
+                                    <Button variant="outline" class="justify-between w-full">
+                                        <template v-if="maquinaSeleccionada">
+                                            {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }}
+                                        </template>
+                                        <template v-else>
+                                            Seleccione máquina
+                                        </template>
+                                        <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </ComboboxTrigger>
+                            </ComboboxAnchor>
 
-                                 <ComboboxList class="w-[var(--radix-popper-anchor-width)]">
+                            <ComboboxList class="w-[var(--radix-popper-anchor-width)]">
 
                                 <div class="relative w-full items-center">
                                     <ComboboxInput
@@ -286,25 +322,25 @@ const exportTablaSecundaria = () => {
                                     </span>
                                 </div>
 
-                                    <ComboboxEmpty>No se encontraron máquinas.</ComboboxEmpty>
+                                <ComboboxEmpty>No se encontraron máquinas.</ComboboxEmpty>
 
-                                    <ComboboxGroup>
-                                        <ComboboxItem v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
-                                            {{ m.ndi }} - {{ m.nombre }}
-                                            <ComboboxItemIndicator>
-                                                <Check class="ml-auto h-4 w-4" />
-                                            </ComboboxItemIndicator>
-                                        </ComboboxItem>
-                                    </ComboboxGroup>
-                                </ComboboxList>
-                            </Combobox>
-                        </div>
+                                <ComboboxGroup>
+                                    <ComboboxItem v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
+                                        {{ m.ndi }} - {{ m.nombre }}
+                                        <ComboboxItemIndicator>
+                                            <Check class="ml-auto h-4 w-4" />
+                                        </ComboboxItemIndicator>
+                                    </ComboboxItem>
+                                </ComboboxGroup>
+                            </ComboboxList>
+                        </Combobox>
                     </div>
+                </div>
 
 
 
 
-              
+
 
                 <!-- 🟣 Fila 4 → Botones -->
                 <div class="flex flex-wrap gap-4 pt-3">
@@ -335,92 +371,7 @@ const exportTablaSecundaria = () => {
             </div>
 
 
-            <!-- Filtros -->
-            <!-- <div class="flex flex-wrap items-end gap-4 bg-card/80 backdrop-blur-md p-6 rounded-xl shadow-md border border-border/60">
-
-       
-        <div class="flex gap-2 mr-4">
-          <button
-            v-if="role==='master_admin' || role==='casino_admin'"
-            @click="form.mode='all_casinos'; actualizar()"
-            :class="['px-3 py-2 rounded-lg border', form.mode==='all_casinos' ? 'bg-indigo-600 text-white' : 'bg-background']">
-            Todos los casinos
-          </button>
-
-          <button
-            v-if="role==='master_admin' || role==='casino_admin'"
-            @click="form.mode='casino'; actualizar()"
-            :class="['px-3 py-2 rounded-lg border', form.mode==='casino' ? 'bg-indigo-600 text-white' : 'bg-background']">
-            Por casino
-          </button>
-
-          <button
-            @click="form.mode='sucursal'; actualizar()"
-            :class="['px-3 py-2 rounded-lg border', form.mode==='sucursal' ? 'bg-indigo-600 text-white' : 'bg-background']">
-            Por sucursal
-          </button>
-
-          <button
-            @click="form.mode='maquina'; actualizar()"
-            :class="['px-3 py-2 rounded-lg border', form.mode==='maquina' ? 'bg-indigo-600 text-white' : 'bg-background']">
-            Por máquina
-          </button>
-        </div>
-
-        
-        <div class="flex flex-col min-w-[220px]">
-          <label class="text-sm mb-1 text-muted-foreground">Rango</label>
-          <select v-model="form.range" @change="actualizar" class="border rounded-lg px-3 py-2 bg-background">
-            <option value="today">Hoy</option>
-            <option value="yesterday">Ayer</option>
-            <option value="custom">Fechas seleccionadas</option>
-            <option value="last7">Últimos 7 días</option>
-            <option value="last30">Últimos 30 días</option>
-            <option value="this_month">Este mes</option>
-            <option value="last_month">Mes pasado</option>
-            <option value="this_month_last_year">Este mes el año pasado</option>
-            <option value="this_year">Este año</option>
-            <option value="last_year">Año pasado</option>
-          </select>
-        </div>
-
-        <div v-if="form.range==='custom'" class="flex items-end gap-4">
-          <div>
-            <label class="text-sm mb-1 text-muted-foreground">Desde</label>
-            <input v-model="form.start_date" type="date" class="border rounded-lg px-3 py-2 bg-background" />
-          </div>
-          <div>
-            <label class="text-sm mb-1 text-muted-foreground">Hasta</label>
-            <input v-model="form.end_date" type="date" class="border rounded-lg px-3 py-2 bg-background" />
-          </div>
-          <button @click="aplicarRango" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">Aplicar</button>
-        </div>
-
-        
-        <div v-if="role==='master_admin'" class="flex flex-col min-w-[200px]">
-          <label class="text-sm mb-1 text-muted-foreground">Casino</label>
-          <select v-model="form.casino_id" @change="actualizar" class="border rounded-lg px-3 py-2 bg-background">
-            <option value="">Todos</option>
-            <option v-for="c in props.casinos" :key="c.id" :value="c.id">{{ c.nombre }}</option>
-          </select>
-        </div>
-
-        <div v-if="role==='master_admin' || role==='casino_admin'" class="flex flex-col min-w-[220px]">
-          <label class="text-sm mb-1 text-muted-foreground">Sucursal</label>
-          <select v-model="form.sucursal_id" @change="actualizar" class="border rounded-lg px-3 py-2 bg-background">
-            <option value="">Todas</option>
-            <option v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre }}</option>
-          </select>
-        </div>
-
-        <div v-if="form.mode==='maquina'" class="flex flex-col min-w-[260px]">
-          <label class="text-sm mb-1 text-muted-foreground">Máquina</label>
-          <select v-model="form.maquina_id" @change="actualizar" class="border rounded-lg px-3 py-2 bg-background">
-            <option value="">Seleccione…</option>
-            <option v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">{{ m.ndi }} - {{ m.nombre }}</option>
-          </select>
-        </div>
-      </div> -->
+           
 
             <!-- Resumen Global -->
             <div class="p-4 rounded-lg shadow border 
@@ -573,39 +524,66 @@ const exportTablaSecundaria = () => {
             </div>
 
 
-            <!-- Gastos por tipo -->
-            <div class="p-4 rounded-lg shadow border 
-            bg-gradient-to-br from-rose-600/30 to-rose-900/20 
-            border-rose-500/40">
+            
 
+            <!-- MODO AGRUPADO -->
+            <div v-if="['all_casinos', 'casino'].includes(mode)" class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+                
                 <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-semibold">Gastos agrupados por tipo</h2>
-                    <button @click="exportGastosTipo" class="text-sm px-3 py-1 rounded border">Exportar</button>
+                    <h2 class="font-semibold">Gastos Agrupados</h2>
+                    <button @click="exportGastos" class="text-sm px-3 py-1 rounded border">Exportar</button>
                 </div>
-                <div class="overflow-auto">
-                    <table class="min-w-[520px] w-full text-sm">
-                        <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">Fecha</th>
-                                <th class="py-2">Tipo</th>
-                                <th class="py-2">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="g in props.gastosPorTipo" :key="g.tipo" class="border-b">
-                                <td class="py-2">{{ g.fecha }}</td>
-                                <td class="py-2">{{ g.tipo }}</td>
-                                <td class="py-2">{{ money(g.total) }}</td>
-                            </tr>
-                            <tr v-if="!props.gastosPorTipo.length">
-                                <td colspan="2" class="py-2 text-center text-muted-foreground">Sin datos</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="bg-card rounded-lg shadow border">
+                    <Table class="min-w-[520px] w-full text-sm">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Sucursal</TableHead>
+                                <TableHead>Total Gastos</TableHead>
+                            </TableRow>
+                        </TableHeader>
+
+                        <TableBody>
+                            <TableRow v-for="g in gastosPorTipo" :key="g.sucursal">
+                                <TableCell>{{ g.sucursal }}</TableCell>
+                                <TableCell>{{ money(g.total) }}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
 
-            
+            <!-- MODO DETALLADO -->
+            <div v-else class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+               
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold">Gastos Detallados</h2>
+                    <button @click="exportGastos" class="text-sm px-3 py-1 rounded border">Exportar</button>
+                </div>
+                <div class="bg-card rounded-lg shadow border">
+                    <Table class="min-w-[520px] w-full text-sm">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Sucursal</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+
+                        <TableBody>
+                            <TableRow v-for="g in gastosPorTipo" :key="g.id">
+                                <TableCell>{{ g.fecha }}</TableCell>
+                                <TableCell>{{ g.sucursal }}</TableCell>
+                                <TableCell>{{ g.tipo }}</TableCell>
+                                <TableCell>{{ g.descripcion }}</TableCell>
+                                <TableCell>{{ formatCurrency(g.total) }}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+
 
             <!-- Tabla secundaria (por usuario en sucursal o máquina) -->
             <div v-if="props.tablaSecundaria?.length" class="bg-card rounded-xl border p-4">

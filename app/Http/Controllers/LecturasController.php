@@ -71,7 +71,33 @@ class LecturasController extends Controller
         }
 
         // 🔹 Mostrar solo las lecturas pendientes (sin confirmar)
-        $q->where('confirmado', 0);
+        //$q->where('confirmado', 0);
+
+
+        $fecha = $req->fecha;
+
+        // 🔹 Siempre filtrar por fecha si llega
+        if ($req->filled('fecha')) {
+            $q->whereDate('fecha', $fecha);
+        }
+
+        // --------------------------------------------------
+        // 1️⃣ ¿Hay lecturas PENDIENTES en esta fecha?
+        // --------------------------------------------------
+        $hayPendientes = (clone $q)->where('confirmado', 0)->count() > 0;
+
+        if ($hayPendientes) {
+            // Mostrar solo las pendientes
+            $q->where('confirmado', 0);
+            $lecturasConfirmadas = false;
+        } else {
+            // --------------------------------------------------
+            // 2️⃣ Si no hay pendientes, mostrar confirmadas
+            // --------------------------------------------------
+            $q->where('confirmado', 1);
+            $lecturasConfirmadas = $q->count() > 0;
+        }
+
 
         // 🔹 OBTENER EL TOTAL ANTES DE PAGINAR
         $totalRecaudado = (clone $q)->sum('total_recaudo');
@@ -90,13 +116,35 @@ class LecturasController extends Controller
             ->get()
             : [];
 
-        $maquinas = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id', 'denominacion', 'ultimo_neto_final')->get();
+        $maquinas = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id', 'denominacion', 'ultimo_neto_final')->get()
+            ->sort(function ($a, $b) {
+                // Ordenamiento natural: números primero, luego strings
+                $aNdi = $a->ndi;
+                $bNdi = $b->ndi;
+
+                $aIsNumeric = is_numeric($aNdi);
+                $bIsNumeric = is_numeric($bNdi);
+
+                // Si uno es numérico y el otro no, el numérico va primero
+                if ($aIsNumeric && !$bIsNumeric) return -1;
+                if (!$aIsNumeric && $bIsNumeric) return 1;
+
+                // Si ambos son numéricos, comparar como números
+                if ($aIsNumeric && $bIsNumeric) {
+                    return (float)$aNdi <=> (float)$bNdi;
+                }
+
+                // Si ambos son strings, comparar naturalmente
+                return strnatcasecmp($aNdi, $bNdi);
+            })
+            ->values(); // reindexar
 
         $pendientes = $lecturas->total() > 0;
 
         return Inertia::render('Lecturas/Index', [
             'lecturas'   => $lecturas,
             'ultimaFechaConfirmada' => $ultimaFechaConfirmada,
+            'lecturas_confirmadas' => $lecturasConfirmadas,
             'pendientes' => $pendientes,
             'total_registros' => $cantidadRegistros,
             'total_recaudado' => $totalRecaudado,
@@ -107,149 +155,101 @@ class LecturasController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    // public function store(Request $req)
-    // {
-    //     $data = $req->validate([
-    //         'sucursal_id' => 'required|integer',
-    //         'maquina_id' => 'required|integer',
-    //         'entrada' => 'required|numeric',
-    //         'salida' => 'nullable|numeric',
-    //         'jackpots' => 'nullable|numeric',
-    //         'neto_inicial' => 'required|numeric',
-    //         'neto_final' => 'required|numeric',
-    //         'total_creditos' => 'required|numeric',
-    //         'total_recaudo' => 'required|numeric',
-    //     ]);
 
-    //     // si están vacíos, poner 0
-    //     $data['salida'] = $data['salida'] ?? 0;
-    //     $data['jackpots'] = $data['jackpots'] ?? 0;
-
-    //     // Si el usuario es cajero, forzar neto_inicial con el último neto_final de la máquina
-    //     if ($req->user()->hasRole('cajero')) {
-    //         $maquina = Maquina::find($data['maquina_id']);
-    //         $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
-    //     }
-
-    //     $existe = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-    //         ->where('sucursal_id', $data['sucursal_id'])
-    //         ->where('confirmado', 0)
-    //         ->exists();
-
-    //     if ($existe) {
-    //         throw ValidationException::withMessages([
-    //             'maquina_id' => 'Ya existe una lectura para esta máquina.',
-    //         ]);
-    //     }
-
-    //     $existeAnterior = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-    //         ->where('sucursal_id', $data['sucursal_id'])
-    //         ->where('confirmado', 1)
-    //         ->whereDate('fecha', now())
-    //         ->exists();
-
-    //     if ($existeAnterior) {
-    //         throw ValidationException::withMessages([
-    //             'maquina_id' => 'Ya existe una lectura cerrada para esta máquina en esta fecha.',
-    //         ]);
-    //     }
-
-    //     LecturaMaquina::create($data + [
-    //         'user_id' => $req->user()->id,
-    //         'fecha' => now(),
-    //     ]);
-
-
-    //     // 🔄 Actualizar el último neto final de la máquina
-    //     $maquina = Maquina::find($data['maquina_id']);
-    //     if ($maquina) {
-    //         $maquina->ultimo_neto_final = $data['neto_final'];
-    //         $maquina->save();
-    //     }
-
-    //     return redirect()->back()->with('success', 'Lectura registrada exitosamente');
-    // }
 
 
     public function store(Request $req)
-{
-    // 1️⃣ Validar entrada, incluyendo la fecha
-    $data = $req->validate([
-        'sucursal_id' => 'required|integer',
-        'maquina_id' => 'required|integer',
-        'fecha' => 'required|date',
-        'entrada' => 'required|numeric',
-        'salida' => 'nullable|numeric',
-        'jackpots' => 'nullable|numeric',
-        'neto_inicial' => 'required|numeric',
-        'neto_final' => 'required|numeric',
-        'total_creditos' => 'required|numeric',
-        'total_recaudo' => 'required|numeric',
-    ]);
-
-    // 2️⃣ Si están vacíos, poner 0
-    $data['salida'] = $data['salida'] ?? 0;
-    $data['jackpots'] = $data['jackpots'] ?? 0;
-
-    $maquina = Maquina::findOrFail($data['maquina_id']);
-
-    // 3️⃣ Validar que la fecha no sea anterior al último cierre de esa máquina
-    $ultimaConfirmada = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-        ->where('sucursal_id', $data['sucursal_id'])
-        ->where('confirmado', 1)
-        ->orderByDesc('fecha')
-        ->value('fecha');
-
-    if ($ultimaConfirmada && $data['fecha'] < $ultimaConfirmada) {
-        throw ValidationException::withMessages([
-            'fecha' => "No puedes registrar lecturas antes de la última fecha confirmada ($ultimaConfirmada).",
+    {
+        // 1️⃣ Validar entrada, incluyendo la fecha
+        $data = $req->validate([
+            'sucursal_id' => 'required|integer',
+            'maquina_id' => 'required|integer',
+            'fecha' => 'required|date',
+            'entrada' => 'required|numeric',
+            'salida' => 'nullable|numeric',
+            'jackpots' => 'nullable|numeric',
+            'neto_inicial' => 'required|numeric',
+            'neto_final' => 'required|numeric',
+            'total_creditos' => 'required|numeric',
+            'total_recaudo' => 'required|numeric',
         ]);
+
+        // 2️⃣ Si están vacíos, poner 0
+        $data['salida'] = $data['salida'] ?? 0;
+        $data['jackpots'] = $data['jackpots'] ?? 0;
+
+        $maquina = Maquina::findOrFail($data['maquina_id']);
+
+        // 3️⃣ Validar que la fecha no sea anterior al último cierre de esa máquina
+        $ultimaConfirmada = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+            ->where('sucursal_id', $data['sucursal_id'])
+            ->where('confirmado', 1)
+            ->orderByDesc('fecha')
+            ->value('fecha');
+
+        if ($ultimaConfirmada && $data['fecha'] < $ultimaConfirmada) {
+            throw ValidationException::withMessages([
+                'fecha' => "No puedes registrar lecturas antes de la última fecha confirmada ($ultimaConfirmada).",
+            ]);
+        }
+
+        // 4️⃣ Si el usuario es cajero, se recalcula el neto inicial al último neto final
+        if ($req->user()->hasRole('cajero')) {
+            $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
+        }
+
+        // 5️⃣ Verificar duplicados NO confirmados (pendientes)
+
+        if ($req->user()->hasRole('master_admin')) {
+            $confirmado = 1;
+        } else {
+            $confirmado = 0;
+        }
+
+        $existePendiente = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+            ->where('sucursal_id', $data['sucursal_id'])
+            ->where('confirmado', 0)
+            ->exists();
+
+        if ($existePendiente) {
+            throw ValidationException::withMessages([
+                'maquina_id' => 'Ya existe una lectura pendiente para esta máquina.',
+            ]);
+        }
+
+        // 6️⃣ Verificar si ya existe una lectura confirmada en la MISMA FECHA
+        $existeConfirmadaMismaFecha = LecturaMaquina::where('maquina_id', $data['maquina_id'])
+            ->where('sucursal_id', $data['sucursal_id'])
+            ->where('confirmado', 1)
+            ->whereDate('fecha', $data['fecha'])
+            ->exists();
+
+        if ($existeConfirmadaMismaFecha) {
+            throw ValidationException::withMessages([
+                'fecha' => "Ya existe una lectura confirmada para esta máquina en la fecha {$data['fecha']}.",
+            ]);
+        }
+
+        if ($confirmado) {
+            // 7️⃣ Guardar lectura con la fecha seleccionada (NO usar now())
+            $lectura = LecturaMaquina::create($data + [
+                'user_id' => $req->user()->id,
+                'fecha_confirmacion' => now(),
+                'confirmado' => $confirmado
+            ]);
+        } else {
+            // 7️⃣ Guardar lectura con la fecha seleccionada (NO usar now())
+            $lectura = LecturaMaquina::create($data + [
+                'user_id' => $req->user()->id,
+            ]);
+        }
+
+        // 8️⃣ Actualizar el último neto final de la máquina
+        $maquina->ultimo_neto_final = $data['neto_final'];
+        $maquina->save();
+
+        return redirect()->back()->with('success', 'Lectura registrada exitosamente');
     }
-
-    // 4️⃣ Si el usuario es cajero, se recalcula el neto inicial al último neto final
-    if ($req->user()->hasRole('cajero')) {
-        $data['neto_inicial'] = $maquina->ultimo_neto_final ?? 0;
-    }
-
-    // 5️⃣ Verificar duplicados NO confirmados (pendientes)
-    $existePendiente = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-        ->where('sucursal_id', $data['sucursal_id'])
-        ->where('confirmado', 0)
-        ->exists();
-
-    if ($existePendiente) {
-        throw ValidationException::withMessages([
-            'maquina_id' => 'Ya existe una lectura pendiente para esta máquina.',
-        ]);
-    }
-
-    // 6️⃣ Verificar si ya existe una lectura confirmada en la MISMA FECHA
-    $existeConfirmadaMismaFecha = LecturaMaquina::where('maquina_id', $data['maquina_id'])
-        ->where('sucursal_id', $data['sucursal_id'])
-        ->where('confirmado', 1)
-        ->whereDate('fecha', $data['fecha'])
-        ->exists();
-
-    if ($existeConfirmadaMismaFecha) {
-        throw ValidationException::withMessages([
-            'fecha' => "Ya existe una lectura confirmada para esta máquina en la fecha {$data['fecha']}.",
-        ]);
-    }
-
-    // 7️⃣ Guardar lectura con la fecha seleccionada (NO usar now())
-    $lectura = LecturaMaquina::create($data + [
-        'user_id' => $req->user()->id,
-    ]);
-
-    // 8️⃣ Actualizar el último neto final de la máquina
-    $maquina->ultimo_neto_final = $data['neto_final'];
-    $maquina->save();
-
-    return redirect()->back()->with('success', 'Lectura registrada exitosamente');
-}
 
 
 
@@ -282,7 +282,7 @@ class LecturasController extends Controller
     public function destroy(Request $req, LecturaMaquina $lectura)
     {
         // 🚫 No permitir eliminar lecturas con cierre
-        if ($lectura->confirmado) {
+        if ($lectura->confirmado && !$req->user()->hasRole('master_admin')) {
             return back()->withErrors([
                 'lectura' => 'No se puede eliminar una lectura ya confirmada.'
             ]);

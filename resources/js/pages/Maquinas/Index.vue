@@ -10,6 +10,15 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+
+import {
     Select,
     SelectContent,
     SelectGroup,
@@ -26,7 +35,7 @@ interface LinkItem { url: string | null; label: string; active: boolean }
 interface Paginator<T> { data: T[]; links: LinkItem[]; total: number }
 interface Casino { id: number; nombre: string }
 interface Sucursal { id: number; nombre: string; casino_id: number }
-interface Maquina { id: number; ndi: string; nombre: string; denominacion: number; codigo_interno: string; sucursal_id: number; sucursal?: { nombre: string }; activa: number }
+interface Maquina { id: number; ndi: string; nombre: string; denominacion: number; codigo_interno: string; sucursal_id: number; sucursal?: { nombre: string }; activa: number; ultimo_neto_final?: number }
 interface Filters { search?: string; casino_id?: number | null; sucursal_id?: number | null }
 interface User { id: number; roles: string[]; casino_id?: number | null; sucursal_id?: number | null }
 
@@ -78,10 +87,19 @@ const form = useForm({
     denominacion: '',
     codigo_interno: '',
     sucursal_id: '',
+    ultimo_neto_final: '0',
+})
+
+const transferForm = useForm({
+    maquina_id: null as number | null,
+    nueva_sucursal_id: '',
 })
 
 const isEditing = ref(false)
 const editingId = ref<number | null>(null)
+
+const isTransferring = ref(false)
+const transferringMaquina = ref<Maquina | null>(null)
 
 /* ======================
    Fijar sucursal si es sucursal_admin
@@ -101,7 +119,11 @@ const openEdit = (m: Maquina) => {
     form.denominacion = String(m.denominacion)
     form.codigo_interno = m.codigo_interno ?? ''
     form.sucursal_id = String(m.sucursal_id)
+    form.ultimo_neto_final = String(m.ultimo_neto_final ?? 0)
 }
+
+
+
 
 const reset = () => {
     isEditing.value = false
@@ -152,6 +174,42 @@ const deleteMaquina = (id: number) => {
     }
 }
 
+
+/* ======================
+   Transferir máquina
+====================== */
+const openTransfer = (m: Maquina) => {
+    isTransferring.value = true
+    transferringMaquina.value = m
+    transferForm.maquina_id = m.id
+    transferForm.nueva_sucursal_id = ''
+}
+
+const closeTransfer = () => {
+    isTransferring.value = false
+    transferringMaquina.value = null
+    transferForm.reset()
+    transferForm.clearErrors()
+}
+
+const executeTransfer = () => {
+    if (!transferForm.maquina_id) return
+    
+    transferForm.patch(`/maquinas/${transferForm.maquina_id}/transfer`, {
+        onSuccess: () => {
+            toast.success('Máquina transferida correctamente')
+            closeTransfer()
+        },
+        onError: (errors) => {
+            toast.error('Error al transferir', {
+                description: Object.values(errors).flat().join(', ')
+            })
+        }
+    })
+}
+
+
+
 /* ======================
    Activar / Desactivar
 ====================== */
@@ -181,6 +239,14 @@ const sucursalesFormulario = computed(() => {
         return props.sucursales.filter(s => s.id === props.user.sucursal_id)
     }
     return props.sucursales
+})
+
+
+// Computed para sucursales disponibles en transferencia (excluye la actual)
+const sucursalesTransferencia = computed(() => {
+    if (!transferringMaquina.value) return props.sucursales
+    
+    return props.sucursales.filter(s => s.id !== transferringMaquina.value?.sucursal_id)
 })
 </script>
 
@@ -268,6 +334,12 @@ const sucursalesFormulario = computed(() => {
                     <Input v-model="form.codigo_interno" placeholder="Serial (opcional)" />
                 </div>
 
+                 <div>
+                    <label class="block text-sm mb-1">Neto inicial</label>
+                    <Input v-model="form.ultimo_neto_final" type="number" step="0.01" placeholder="0" 
+                           :class="{ 'border-red-500': form.errors.ultimo_neto_final }" />
+                    <span v-if="form.errors.ultimo_neto_final" class="text-xs text-red-500">{{ form.errors.ultimo_neto_final }}</span>
+                </div>
                 
 
                 <div class="col-span-4 flex gap-2">
@@ -299,6 +371,7 @@ const sucursalesFormulario = computed(() => {
                             <TableHead>NDI</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Denominación</TableHead>
+                            <TableHead>Neto Inicial</TableHead>
                             <TableHead>Sucursal</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
@@ -310,6 +383,7 @@ const sucursalesFormulario = computed(() => {
                             <TableCell>{{ m.ndi }}</TableCell>
                             <TableCell>{{ m.nombre }}</TableCell>
                             <TableCell>{{ m.denominacion }}</TableCell>
+                            <TableCell>{{ m.ultimo_neto_final }}</TableCell>
                             <TableCell>{{ m.sucursal?.nombre }}</TableCell>   
                             <TableCell>
                                 <div class="flex items-center gap-2">
@@ -324,6 +398,9 @@ const sucursalesFormulario = computed(() => {
                             <TableCell>
                                 <div class="flex gap-2">
                                     <Button variant="outline" size="sm" @click="openEdit(m)">Editar</Button>
+                                    <Button variant="secondary" size="sm" @click="openTransfer(m)">
+                                        Transferir
+                                    </Button>
                                     <Button variant="destructive" size="sm" @click="deleteMaquina(m.id)">Eliminar</Button>
                                 </div>
                             </TableCell>
@@ -344,5 +421,60 @@ const sucursalesFormulario = computed(() => {
                    ]" />
             </div>
         </div>
+
+
+         <!-- Modal de Transferencia -->
+        
+        <Dialog v-model:open="isTransferring" @update:open="(val) => val || closeTransfer()">
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>🔄 Transferir Máquina</DialogTitle>
+                    <DialogDescription>
+                        Cambiar la máquina <strong>{{ transferringMaquina?.ndi }} - {{ transferringMaquina?.nombre }}</strong> a otra sucursal
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div class="py-4">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Sucursal actual</label>
+                        <label class="block text-sm font-medium mb-2 bg-blue-500 text-white flex-1 border rounded px-2 py-1">{{transferringMaquina?.sucursal?.nombre}} </label>                       
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Nueva sucursal *</label>
+                        <Select v-model="transferForm.nueva_sucursal_id" 
+                                :class="{ 'border-red-500': transferForm.errors.nueva_sucursal_id }">
+                            <SelectTrigger class="border w-full">
+                                <SelectValue placeholder="Seleccione la nueva sucursal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>Sucursales disponibles</SelectLabel>
+                                    <SelectItem v-for="s in sucursalesTransferencia" 
+                                                :key="s.id" 
+                                                :value="String(s.id)">
+                                        {{ s.nombre }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                        <span v-if="transferForm.errors.nueva_sucursal_id" class="text-xs text-red-500 mt-1 block">
+                            {{ transferForm.errors.nueva_sucursal_id }}
+                        </span>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" @click="closeTransfer" :disabled="transferForm.processing">
+                        Cancelar
+                    </Button>
+                    <Button @click="executeTransfer" :disabled="transferForm.processing" class="bg-indigo-600">
+                        {{ transferForm.processing ? 'Transfiriendo...' : 'Confirmar transferencia' }}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+
     </AppLayout>
 </template>
