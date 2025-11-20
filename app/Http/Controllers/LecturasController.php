@@ -79,6 +79,8 @@ class LecturasController extends Controller
         // 🔹 Siempre filtrar por fecha si llega
         if ($req->filled('fecha')) {
             $q->whereDate('fecha', $fecha);
+        }else{
+            $q->whereDate('fecha', now()->toDateString());
         }
 
         // --------------------------------------------------
