@@ -176,6 +176,12 @@ class LecturasController extends Controller
             'total_recaudo' => 'required|numeric',
         ]);
 
+        // 3️⃣ Si vienen vacíos, asignar 0
+        $data['neto_inicial'] = $data['neto_inicial'] ?? 0;
+        $data['entrada'] = $data['entrada'] ?? 0;
+        $data['salida'] = $data['salida'] ?? 0;
+        $data['jackpots'] = $data['jackpots'] ?? 0;
+
         // 2️⃣ Si están vacíos, poner 0
         $data['salida'] = $data['salida'] ?? 0;
         $data['jackpots'] = $data['jackpots'] ?? 0;
@@ -268,14 +274,74 @@ class LecturasController extends Controller
      */
     public function update(Request $req, LecturaMaquina $lectura)
     {
-        $this->authorize('update', $lectura);
+        // 1️⃣ Validar permisos
+        if ($lectura->confirmado && !$req->user()->hasRole('master_admin')) {
+            throw ValidationException::withMessages([
+                'lectura' => 'No tienes permisos para editar una lectura confirmada.'
+            ]);
+        }
+        
+        // 2️⃣ Validar datos
         $data = $req->validate([
+            'neto_inicial' => 'required|numeric',
             'entrada' => 'required|numeric',
             'salida' => 'required|numeric',
             'jackpots' => 'required|numeric',
         ]);
-        $lectura->fill($data)->save();
-        return $lectura->fresh(['maquina', 'sucursal']);
+
+        // 3️⃣ Si vienen vacíos, asignar 0
+        $data['neto_inicial'] = $data['neto_inicial'] ?? 0;
+        $data['entrada'] = $data['entrada'] ?? 0;
+        $data['salida'] = $data['salida'] ?? 0;
+        $data['jackpots'] = $data['jackpots'] ?? 0;
+
+        DB::transaction(function () use ($lectura, $data) {
+            // 3️⃣ Recalcular y actualizar la lectura actual
+            $nuevoNetoFinal = $data['entrada'] - $data['salida'] - $data['jackpots'];
+            $nuevosCreditos = $nuevoNetoFinal - $data['neto_inicial'];
+            $nuevoRecaudo = $nuevosCreditos * ($lectura->maquina->denominacion ?? 0);
+
+            $lectura->update([
+                'neto_inicial' => $data['neto_inicial'],
+                'entrada' => $data['entrada'],
+                'salida' => $data['salida'],
+                'jackpots' => $data['jackpots'],
+                'neto_final' => $nuevoNetoFinal,
+                'total_creditos' => $nuevosCreditos,
+                'total_recaudo' => $nuevoRecaudo,
+            ]);
+            
+            // 4️⃣ Propagar a todas las lecturas siguientes de la misma máquina
+            $siguientes = LecturaMaquina::with('maquina')
+                ->where('maquina_id', $lectura->maquina_id)
+                ->where('fecha', '>', $lectura->fecha)
+                ->orderBy('fecha', 'asc')
+                ->get();
+
+            $prevNeto = $nuevoNetoFinal;
+
+            foreach ($siguientes as $s) {
+                // neto_inicial para esta lectura es el neto_final anterior
+                $s->neto_inicial = $prevNeto;
+
+                // total_creditos y total_recaudo se recalculan (neto_final permanece)
+                $s->total_creditos = $s->neto_final - $s->neto_inicial;
+                $den = $s->maquina->denominacion ?? $lectura->maquina->denominacion ?? 0;
+                $s->total_recaudo = $s->total_creditos * $den;
+
+                $s->save();
+
+                // preparar para la siguiente iteración
+                $prevNeto = $s->neto_final;
+            }
+
+            // 5️⃣ Actualizar ultimo_neto_final de la máquina al último neto final conocido
+            $maquina = $lectura->maquina;
+            $maquina->ultimo_neto_final = $prevNeto;
+            $maquina->save();
+        });
+
+        return back()->with('success', 'Lectura actualizada y valores recalculados correctamente.');
     }
 
     /**

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { useForm } from '@inertiajs/vue3'
 import { ref, computed } from 'vue'
 
-import { Check, ChevronsUpDown, Search, Trash2 } from "lucide-vue-next"
+import { Check, ChevronsUpDown, Search, Trash2, Edit2 } from "lucide-vue-next"
 import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxItemIndicator, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox"
 
 import {
@@ -264,6 +264,83 @@ watch(() => form.fecha, (value) => {
     })
 })
 
+
+
+// --- NUEVO: estado y formulario para editar ---
+const editModalOpen = ref(false)
+const editForm = useForm({
+    id: null as number | null,
+    neto_inicial: 0,
+    entrada: 0,
+    salida: 0,
+    jackpots: 0,
+})
+
+// NUEVO: denominación de la máquina editada y cálculos reactivos
+const editDenominacion = ref(0)
+const editMaquinaLabel = ref('')
+
+const editNetoFinal = computed(() =>
+    Number(editForm.entrada) - Number(editForm.salida) - Number(editForm.jackpots)
+)
+
+const editTotalCreditos = computed(() => editNetoFinal.value - Number(editForm.neto_inicial))
+
+const editTotalRecaudo = computed(() =>
+    editTotalCreditos.value * (editDenominacion.value ?? 0)
+)
+
+const canEdit = (l: any) => {
+    return l.confirmado == 0 || role.value === 'master_admin'
+}
+
+const openEdit = (l: any) => {
+    if (!canEdit(l)) {
+        toast.error('No tienes permiso para editar esta lectura')
+        return
+    }
+    editForm.reset()
+    editForm.id = l.id
+    editForm.neto_inicial = Number(l.neto_inicial) || 0
+    editForm.entrada = Number(l.entrada) || 0
+    editForm.salida = Number(l.salida) || 0
+    editForm.jackpots = Number(l.jackpots) || 0
+
+    // NUEVO: setear denominación de la máquina para el cálculo del recaudo
+    editDenominacion.value = l.maquina?.denominacion ?? 0
+    editMaquinaLabel.value = `${l.maquina?.ndi} - ${l.maquina?.nombre} • Den: ${formatNumber(editDenominacion.value)}`
+
+    editModalOpen.value = true
+}
+
+const submitEdit = () => {
+    if (!editForm.id) return
+    editForm.put(`/lecturas/${editForm.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Lectura actualizada')
+            editModalOpen.value = false
+            // refrescar lista para ver recalculos
+            router.visit('/lecturas', {
+                method: 'get',
+                preserveScroll: true,
+                preserveState: true,
+                data: {
+                    casino_id: form.casino_id,
+                    sucursal_id: form.sucursal_id,
+                    fecha: form.fecha || null,
+                },
+            })
+        },
+        onError: (errors) => {
+            toast.error('Error al actualizar lectura')
+            console.error(errors)
+        },
+    })
+}
+
+
+
 </script>
 
 
@@ -339,7 +416,7 @@ watch(() => form.fecha, (value) => {
                                 <SelectGroup>
                                     <SelectLabel>Sucursales</SelectLabel>
                                     <SelectItem v-for="s in sucursalesFiltradas" :key="s.id" :value="s.id">{{ s.nombre
-                                        }}</SelectItem>
+                                    }}</SelectItem>
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
@@ -405,7 +482,7 @@ watch(() => form.fecha, (value) => {
                         <div class="flex gap-2">
                             <input v-model.number="form.neto_inicial" type="number" step="0.01"
                                 :readonly="role === 'cajero'" :class="[
-                                    'flex-1 border rounded px-2 py-1',
+                                    'w-full border rounded px-2 py-1',
                                     role === 'cajero' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
                                 ]" placeholder="Automático" />
                             <Button
@@ -454,6 +531,12 @@ watch(() => form.fecha, (value) => {
                     class="bg-indigo-600 text-white px-4 py-2 rounded">
                     Guardar
                 </button>
+
+                <div v-if="role === 'cajero' && props.lecturas_confirmadas"
+                    class="bg-red-500/20 text-red-500 border border-red-500 px-4 py-2 rounded mb-4">
+                    ⚠️ Las lecturas de esta fecha ya están confirmadas.
+                    No se pueden ingresar nuevas lecturas.
+                </div>
             </form>
 
             <div class="grid grid-cols-2 gap-4 my-4">
@@ -469,12 +552,7 @@ watch(() => form.fecha, (value) => {
 
             <div class="p-6 space-y-6">
                 <h1 class="text-2xl font-bold">📊 Lecturas de Máquinas</h1>
-
-                <div v-if="role === 'cajero' && props.lecturas_confirmadas"
-                    class="bg-red-500/20 border border-red-500 text-red-700 px-4 py-2 rounded mb-4">
-                    ⚠️ Las lecturas de esta fecha ya están confirmadas.
-                    No se pueden ingresar nuevas lecturas.
-                </div>
+                
 
                 <div v-if="props.pendientes && !props.lecturas_confirmadas" class="flex gap-4 mb-4 justify-end">
                     <Button class="bg-green-600 text-white hover:bg-green-700" @click="confirmarLecturas"
@@ -555,6 +633,12 @@ watch(() => form.fecha, (value) => {
                                         </AlertDialogContent>
                                     </AlertDialog> -->
 
+                                    <!-- Botón editar -->
+                                    <Button variant="ghost" size="sm" @click="openEdit(l)"
+                                        :disabled="!(l.confirmado == 0 || role === 'master_admin')" class="mr-2">
+                                        <Edit2 />
+                                    </Button>
+
                                     <!-- 🔥 Si lectura NO confirmada → cualquiera puede eliminar -->
                                     <AlertDialog v-if="l.confirmado == 0">
                                         <AlertDialogTrigger as-child>
@@ -626,6 +710,55 @@ watch(() => form.fecha, (value) => {
                                 : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                         ]" />
                 </div>
+            </div>
+        </div>
+
+
+        <!-- NUEVO: Modal simple para editar lectura -->
+        <div v-if="editModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div class="bg-card p-6 rounded w-full max-w-lg">
+                <h2 class="text-lg font-bold mb-3">Editar lectura</h2>
+                <h3 class="text-lg font-bold mb-3">{{ editMaquinaLabel }}</h3>
+                <form @submit.prevent="submitEdit" class="space-y-3">
+                    <div class="grid grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-sm">Neto Inicial</label>
+                            <input v-model.number="editForm.neto_inicial" type="number" step="0.01"
+                                :readonly="role === 'cajero'" :class="[
+                                    'w-full border rounded px-2 py-1',
+                                    role === 'cajero' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                                ]" placeholder="Automático" />
+                        </div>
+                        <div>
+                            <label class="block text-sm">Entrada</label>
+                            <input v-model.number="editForm.entrada" type="number" step="0.01"
+                                class="w-full border rounded px-2 py-1" />
+                        </div>
+                        <div>
+                            <label class="block text-sm">Salida</label>
+                            <input v-model.number="editForm.salida" type="number" step="0.01"
+                                class="w-full border rounded px-2 py-1" />
+                        </div>
+                        <div>
+                            <label class="block text-sm">Jackpots</label>
+                            <input v-model.number="editForm.jackpots" type="number" step="0.01"
+                                class="w-full border rounded px-2 py-1" />
+                        </div>
+                    </div>
+
+                    <!-- NUEVO: Preview de cálculos -->
+                    <div class="p-4 bg-muted rounded mt-3">
+                        <p>Neto inicial: <strong>{{ formatNumber(editForm.neto_inicial) }}</strong></p>
+                        <p>Neto final: <strong>{{ formatNumber(editNetoFinal) }}</strong></p>
+                        <p>Total créditos: <strong>{{ formatNumber(editTotalCreditos) }}</strong></p>
+                        <p>Total recaudado: <strong>{{ formatCurrency(editTotalRecaudo) }}</strong></p>
+                    </div>
+
+                    <div class="flex justify-end gap-2 mt-4">
+                        <Button type="button" variant="outline" @click="editModalOpen = false">Cancelar</Button>
+                        <Button type="submit">Guardar</Button>
+                    </div>
+                </form>
             </div>
         </div>
 
