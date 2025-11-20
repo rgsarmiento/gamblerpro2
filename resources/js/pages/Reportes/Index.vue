@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import axios from 'axios'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Head, router } from '@inertiajs/vue3'
 import { type BreadcrumbItem } from '@/types';
@@ -114,18 +115,57 @@ const money = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency',
 const rojoSiNegativo = (v: number) => (v < 0 ? 'text-red-500 font-semibold' : '')
 
 // exportar tabla utilitario
-const exportar = (headings: string[], rows: any[], nombre = 'reporte.xlsx') => {
-    const form = document.createElement('form')
-    form.method = 'GET'
-    form.action = '/reportes/export'
-    const add = (k: string, v: any) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = JSON.stringify(v); form.appendChild(i) }
-    add('headings', headings)
-    add('rows', rows)
-    const n = document.createElement('input'); n.type = 'hidden'; n.name = 'name'; n.value = nombre; form.appendChild(n)
-    document.body.appendChild(form)
-    form.submit()
-    form.remove()
+// const exportar = (headings: string[], rows: any[], nombre = 'reporte.xlsx') => {
+//     const form = document.createElement('form')
+//     form.method = 'GET'
+//     form.action = '/reportes/export'
+//     const add = (k: string, v: any) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = JSON.stringify(v); form.appendChild(i) }
+//     add('headings', headings)
+//     add('rows', rows)
+//     const n = document.createElement('input'); n.type = 'hidden'; n.name = 'name'; n.value = nombre; form.appendChild(n)
+//     document.body.appendChild(form)
+//     form.submit()
+//     form.remove()
+// }
+
+const exportar = async (headings, rows, nombre = 'reporte.xlsx') => {
+    try {
+        const response = await axios.post(
+            '/reportes/export',
+            {
+                headings,
+                rows,
+                name: nombre,
+            },
+            {
+                responseType: 'blob',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                },
+            }
+        )
+
+        // Crear URL del blob
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+
+        // Descargar
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', nombre);
+        document.body.appendChild(link);
+        link.click();
+
+        // limpiar
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error(error);
+        toast.error('Error exportando el archivo')
+    }
 }
+
 
 // construir matrices exportables según se muestran
 const exportResumen = () => {

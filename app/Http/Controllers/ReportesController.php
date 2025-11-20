@@ -366,20 +366,36 @@ class ReportesController extends Controller
     }
 
     /** Exportar cualquier tabla visible */
+    // public function export(Request $req)
+    // {
+    //     // ✅ decodificar los JSON recibidos
+    //     $headings = json_decode($req->input('headings', '[]'), true);
+    //     $rows     = json_decode($req->input('rows', '[]'), true);
+    //     $name     = $req->input('name', 'reporte.xlsx');
+
+    //     // Validar que sean arrays
+    //     if (!is_array($headings) || !is_array($rows)) {
+    //         abort(400, 'Formato inválido para exportar');
+    //     }
+
+    //     return Excel::download(new TableExport($headings, $rows), $name);
+    // }
+
+
     public function export(Request $req)
     {
-        // ✅ decodificar los JSON recibidos
-        $headings = json_decode($req->input('headings', '[]'), true);
-        $rows     = json_decode($req->input('rows', '[]'), true);
+        $headings = $req->input('headings', []);
+        $rows     = $req->input('rows', []);
         $name     = $req->input('name', 'reporte.xlsx');
 
-        // Validar que sean arrays
         if (!is_array($headings) || !is_array($rows)) {
-            abort(400, 'Formato inválido para exportar');
+            abort(400, 'Formato inválido');
         }
 
         return Excel::download(new TableExport($headings, $rows), $name);
     }
+
+
 
     /** === Helpers === */
     private function resolverRango(Request $req): array

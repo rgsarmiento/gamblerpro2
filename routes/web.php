@@ -37,7 +37,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/reportes', [ReportesController::class, 'index'])->name('reportes.index');
-    Route::get('/reportes/export', [ReportesController::class, 'export'])->name('reportes.export');
+    //Route::get('/reportes/export', [ReportesController::class, 'export'])->name('reportes.export');
+    Route::post('/reportes/export', [ReportesController::class, 'export'])->name('reportes.export');
 });
 
 
