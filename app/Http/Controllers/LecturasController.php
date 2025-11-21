@@ -195,11 +195,11 @@ class LecturasController extends Controller
             ->orderByDesc('fecha')
             ->value('fecha');
 
-        if ($ultimaConfirmada && $data['fecha'] < $ultimaConfirmada) {
-            throw ValidationException::withMessages([
-                'fecha' => "No puedes registrar lecturas antes de la última fecha confirmada ($ultimaConfirmada).",
-            ]);
-        }
+        // if ($ultimaConfirmada && $data['fecha'] < $ultimaConfirmada) {
+        //     throw ValidationException::withMessages([
+        //         'fecha' => "No puedes registrar lecturas antes de la última fecha confirmada ($ultimaConfirmada).",
+        //     ]);
+        // }
 
         // 4️⃣ Si el usuario es cajero, se recalcula el neto inicial al último neto final
         if ($req->user()->hasRole('cajero')) {
@@ -323,6 +323,8 @@ class LecturasController extends Controller
             foreach ($siguientes as $s) {
                 // neto_inicial para esta lectura es el neto_final anterior
                 $s->neto_inicial = $prevNeto;
+
+                $s->neto_final = $s->entrada - $s->salida - $s->jackpots;
 
                 // total_creditos y total_recaudo se recalculan (neto_final permanece)
                 $s->total_creditos = $s->neto_final - $s->neto_inicial;
