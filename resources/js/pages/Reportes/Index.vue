@@ -37,7 +37,7 @@ const props = defineProps<{
 
     casinos: { id: number, nombre: string }[],
     sucursales: { id: number, nombre: string, casino_id: number }[],
-    maquinas: { id: number, ndi: string, nombre: string, sucursal_id: number }[],
+    maquinas: { id: number, ndi: string, nombre: string, denominacion: number; sucursal_id: number }[],
     filtros: { casino_id: number | null, sucursal_id: number | null, maquina_id: number | null, range: string, start_date?: string, end_date?: string },
     user: { id: number, roles: string[], casino_id?: number | null, sucursal_id?: number | null }
 }>()
@@ -226,6 +226,20 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
+const formatNumber = (value) => {
+    // 1. Aseguramos que el valor sea numérico
+    const numberValue = parseFloat(value);
+
+    // 2. Si no es un número válido, devolvemos 0 o lo que prefieras
+    if (isNaN(numberValue)) {
+        return 0;
+    }
+
+    // 3. ¡LA MAGIA! toFixed(2) lo convierte a "100.00" o "123.45".
+    //    Number() lo vuelve a convertir en número, eliminando los ceros innecesarios.
+    return Number(numberValue.toFixed(2));
+};
+
 </script>
 
 <template>
@@ -317,7 +331,7 @@ const formatCurrency = (value: number) => {
                                 <ComboboxTrigger as-child class="border w-full">
                                     <Button variant="outline" class="justify-between w-full">
                                         <template v-if="maquinaSeleccionada">
-                                            {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }}
+                                            {{ maquinaSeleccionada.ndi }} - {{ maquinaSeleccionada.nombre }} • Den: {{ formatNumber(maquinaSeleccionada.denominacion) }}
                                         </template>
                                         <template v-else>
                                             Seleccione máquina
@@ -342,7 +356,7 @@ const formatCurrency = (value: number) => {
 
                                 <ComboboxGroup>
                                     <ComboboxItem v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
-                                        {{ m.ndi }} - {{ m.nombre }}
+                                        {{ m.ndi }} - {{ m.nombre }}  • Den: {{ formatNumber(m.denominacion) }}
                                         <ComboboxItemIndicator>
                                             <Check class="ml-auto h-4 w-4" />
                                         </ComboboxItemIndicator>

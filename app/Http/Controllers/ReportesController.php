@@ -375,7 +375,7 @@ class ReportesController extends Controller
         // combos
         $casinos    = Casino::select('id', 'nombre')->get();
         $sucursales = Sucursal::select('id', 'nombre', 'casino_id')->get();
-        $maquinas   = Maquina::select('id', 'ndi', 'nombre', 'sucursal_id')->get()
+        $maquinas   = Maquina::select('id', 'ndi', 'nombre', 'denominacion', 'sucursal_id')->get()
             ->sort(function ($a, $b) {
                 // Ordenamiento natural: números primero, luego strings
                 $aNdi = $a->ndi;
