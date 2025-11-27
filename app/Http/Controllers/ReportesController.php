@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 class ReportesController extends Controller
 {
     /** Vista + datos */
+    
     public function index(Request $req)
     {
         $user = $req->user();
@@ -273,6 +274,7 @@ class ReportesController extends Controller
 
                 // Asignar a bloques
                 $bloques['tablaGastosPorTipo'] = $gastosDetallados;
+
                 $bloques['tablaGastosAgrupados'] = $gastosAgrupados;
 
                 // (maquina, entrada, salida, jackpots, neto_final, neto_inicial, creditos, recaudo)
