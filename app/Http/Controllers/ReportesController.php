@@ -405,9 +405,9 @@ class ReportesController extends Controller
 
             'resumenGlobal'    => $resumenGlobal,
             'gastosPorTipo'    => $gastosPorTipo,
-            'tablaPrincipal'   => $bloques['tablaPrincipal'],
-            'tablaSecundaria'  => $bloques['tablaSecundaria'],            
-            'tablaGastosAgrupados'  => $bloques['tablaGastosAgrupados'],
+            'tablaPrincipal'   => $bloques['tablaPrincipal'] ?? [],
+            'tablaSecundaria'  => $bloques['tablaSecundaria'] ?? [],            
+            'tablaGastosAgrupados'  => $bloques['tablaGastosAgrupados'] ?? [],
             'chart'            => $chart,
 
             'casinos'          => $casinos,
