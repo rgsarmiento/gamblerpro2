@@ -173,18 +173,29 @@ class ReportesController extends Controller
 
         switch ($mode) {
             case 'all_casinos':
-                // (casino, neto_final, neto_inicial, creditos, recaudo)
+                // (casino, recaudo) - SIMPLIFICADO
                 $porCasino = (clone $lecturasBase)
-                    ->selectRaw('casinos.nombre AS casino,
-                        SUM(neto_final)   AS neto_final,
-                        SUM(neto_inicial) AS neto_inicial,
-                        SUM(total_creditos) AS creditos,
+                    ->selectRaw('casinos.id as casino_id, casinos.nombre AS casino,
                         SUM(total_recaudo)  AS recaudo')
                     ->join('sucursales', 'sucursales.id', '=', 'lecturas_maquinas.sucursal_id')
                     ->join('casinos', 'casinos.id', '=', 'sucursales.casino_id')
-                    ->groupBy('casinos.nombre')
+                    ->groupBy('casinos.id', 'casinos.nombre')
                     ->orderByDesc('recaudo')
                     ->get();
+
+                // Calcular gastos por casino
+                $gastosPorCasino = (clone $gastosBase)
+                    ->selectRaw('sucursales.casino_id, SUM(gastos.valor) as total_gastos')
+                    ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
+                    ->groupBy('sucursales.casino_id')
+                    ->pluck('total_gastos', 'sucursales.casino_id');
+
+                $porCasino->transform(function ($item) use ($gastosPorCasino) {
+                    $gastos = $gastosPorCasino[$item->casino_id] ?? 0;
+                    $item->gastos = $gastos;
+                    $item->total_neto = $item->recaudo - $gastos;
+                    return $item;
+                });
 
                 $bloques['tablaPrincipal'] = $porCasino;
 
@@ -196,17 +207,27 @@ class ReportesController extends Controller
                 break;
 
             case 'casino':
-                // (sucursal, neto_final, neto_inicial, creditos, recaudo)
+                // (sucursal, recaudo) - SIMPLIFICADO
                 $porSucursal = (clone $lecturasBase)
-                    ->selectRaw('sucursales.nombre AS sucursal,
-                        SUM(neto_final)   AS neto_final,
-                        SUM(neto_inicial) AS neto_inicial,
-                        SUM(total_creditos) AS creditos,
+                    ->selectRaw('sucursales.id as sucursal_id, sucursales.nombre AS sucursal,
                         SUM(total_recaudo)  AS recaudo')
                     ->join('sucursales', 'sucursales.id', '=', 'lecturas_maquinas.sucursal_id')
-                    ->groupBy('sucursales.nombre')
+                    ->groupBy('sucursales.id', 'sucursales.nombre')
                     ->orderByDesc('recaudo')
                     ->get();
+
+                // Calcular gastos por sucursal y agregarlos
+                $gastosPorSucursal = (clone $gastosBase)
+                    ->selectRaw('sucursal_id, SUM(valor) as total_gastos')
+                    ->groupBy('sucursal_id')
+                    ->pluck('total_gastos', 'sucursal_id');
+
+                $porSucursal->transform(function ($item) use ($gastosPorSucursal) {
+                    $gastos = $gastosPorSucursal[$item->sucursal_id] ?? 0;
+                    $item->gastos = $gastos;
+                    $item->total_neto = $item->recaudo - $gastos;
+                    return $item;
+                });
 
                 $bloques['tablaPrincipal'] = $porSucursal;
 
@@ -218,9 +239,43 @@ class ReportesController extends Controller
                 break;
 
             case 'sucursal':
+                // 1. Tabla detallada de gastos
+                $gastosDetallados = (clone $gastosBase)
+                    ->selectRaw("
+                        gastos.fecha,
+                        sucursales.nombre AS sucursal,
+                        tipos_gasto.nombre AS tipo,
+                        gastos.descripcion,
+                        gastos.valor AS total
+                    ")
+                    ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
+                    ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
+                    ->orderByDesc('gastos.fecha')
+                    ->get();
+                
+
+                // 2. Tabla agrupada por tipo de gasto (Calculada en PHP para asegurar consistencia)
+                $gastosAgrupados = $gastosDetallados->groupBy('tipo')->map(function ($items, $tipo) {
+                    return [
+                        'tipo' => $tipo,
+                        'cantidad' => $items->count(),
+                        'total' => $items->sum('total'),
+                        'porcentaje' => 0
+                    ];
+                })->values();
+                
+                // Calcular porcentajes
+                $totalGastosSucursal = $gastosAgrupados->sum('total');
+                $gastosAgrupados->transform(function($item) use ($totalGastosSucursal) {
+                    $item['porcentaje'] = $totalGastosSucursal > 0 ? round(($item['total'] / $totalGastosSucursal) * 100, 1) : 0;
+                    return $item;
+                });
+
+                // Asignar a bloques
+                $bloques['tablaGastosPorTipo'] = $gastosDetallados;
+                $bloques['tablaGastosAgrupados'] = $gastosAgrupados;
+
                 // (maquina, entrada, salida, jackpots, neto_final, neto_inicial, creditos, recaudo)
-                // 🔹 Ordenar por NDI (alfanumérico natural)
-                // 🔹 Ordenar por NDI (alfanumérico natural)
                 $porMaquina = (clone $lecturasBase)
                     ->selectRaw("
             maquinas.ndi,
@@ -309,6 +364,9 @@ class ReportesController extends Controller
 
                 $bloques['tablaPrincipal']  = $historial;
                 $bloques['tablaSecundaria'] = $porUsuarioM;
+                
+                // En modo máquina NO mostramos gastos
+                $bloques['tablaGastosPorTipo'] = [];
                 break;
         }
 
@@ -346,7 +404,8 @@ class ReportesController extends Controller
             'resumenGlobal'    => $resumenGlobal,
             'gastosPorTipo'    => $gastosPorTipo,
             'tablaPrincipal'   => $bloques['tablaPrincipal'],
-            'tablaSecundaria'  => $bloques['tablaSecundaria'],
+            'tablaSecundaria'  => $bloques['tablaSecundaria'],            
+            'tablaGastosAgrupados'  => $bloques['tablaGastosAgrupados'],
             'chart'            => $chart,
 
             'casinos'          => $casinos,

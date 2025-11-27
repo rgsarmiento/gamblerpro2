@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/gastos', [GastosController::class, 'index'])->name('gastos.index');
     Route::post('/gastos', [GastosController::class, 'store'])->name('gastos.store');
+    Route::put('/gastos/{gasto}', [GastosController::class, 'update'])->name('gastos.update');
     Route::delete('/gastos/{gasto}', [GastosController::class, 'destroy'])->name('gastos.destroy');
 
     Route::get('/cierres', [CierresController::class, 'index'])->name('cierres.index');

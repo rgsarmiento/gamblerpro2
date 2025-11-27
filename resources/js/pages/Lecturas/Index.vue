@@ -66,6 +66,7 @@ const form = useForm({
 })
 
 // Props desde Laravel
+// Props desde Laravel
 const props = defineProps<{
     lecturas: any
     ultimaFechaConfirmada: string | null
@@ -73,9 +74,14 @@ const props = defineProps<{
     pendientes: boolean
     total_registros: number
     total_recaudado: number
+    total_gastos?: number
     casinos: Array<{ id: number, nombre: string }>
     sucursales: Array<{ id: number, nombre: string, casino_id: number }>
     maquinas: Array<{ id: number; ndi: string; nombre: string; denominacion: number; sucursal_id: number; ultimo_neto_final: number }>
+    gastos_periodo?: any[]
+    gastos_por_tipo?: any[]
+    recaudo_por_sucursal?: any[]
+    tipo_consulta?: string
     user: { id: number, name: string, roles: string[], sucursal_id?: number, casino_id?: number }
 }>()
 

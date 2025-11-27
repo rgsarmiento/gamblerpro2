@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\{LecturaMaquina, Maquina, Sucursal, Casino};
+use App\Models\{LecturaMaquina, Maquina, Sucursal, Casino, Gasto};
 use Illuminate\Validation\ValidationException;
 
 use Illuminate\Support\Facades\DB;
@@ -143,6 +143,89 @@ class LecturasController extends Controller
 
         $pendientes = $lecturas->total() > 0;
 
+        // =========================
+        // 🔹 DETERMINAR TIPO DE CONSULTA
+        // =========================
+        $tipoConsulta = 'sucursal'; // default
+        
+        if ($req->filled('maquina_id')) {
+            $tipoConsulta = 'maquina';
+        } elseif ($req->filled('casino_id') && !$req->filled('sucursal_id')) {
+            $tipoConsulta = 'casino';
+        } elseif ($req->filled('sucursal_id')) {
+            $tipoConsulta = 'sucursal';
+        }
+
+        // =========================
+        // 🔹 OBTENER GASTOS DEL PERÍODO
+        // =========================
+        $gastosQuery = Gasto::with(['tipo', 'proveedor', 'sucursal'])
+            ->when($req->filled('fecha'), fn($q) => $q->whereDate('fecha', $req->fecha))
+            ->when(!$req->filled('fecha'), fn($q) => $q->whereDate('fecha', now()));
+
+        // Aplicar filtros de rol a gastos
+        if ($user->hasRole('master_admin')) {
+            if ($req->filled('casino_id')) {
+                $gastosQuery->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
+            }
+            if ($req->filled('sucursal_id')) {
+                $gastosQuery->where('sucursal_id', $req->sucursal_id);
+            }
+        } elseif ($user->hasRole('casino_admin')) {
+            $gastosQuery->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+            if ($req->filled('sucursal_id')) {
+                $gastosQuery->where('sucursal_id', $req->sucursal_id);
+            }
+        } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+            $gastosQuery->where('sucursal_id', $user->sucursal_id);
+        }
+
+        $gastosPeriodo = $gastosQuery->get();
+        $totalGastos = $gastosPeriodo->sum('valor');
+
+        // =========================
+        // 🔹 GASTOS AGRUPADOS POR TIPO (solo para consulta por sucursal)
+        // =========================
+        $gastosPorTipo = [];
+        if ($tipoConsulta === 'sucursal' && $gastosPeriodo->count() > 0) {
+            $gastosPorTipo = $gastosPeriodo->groupBy('tipo_gasto_id')->map(function ($items) use ($totalGastos) {
+                $total = $items->sum('valor');
+                return [
+                    'tipo' => $items->first()->tipo->nombre ?? 'Sin tipo',
+                    'cantidad' => $items->count(),
+                    'total' => $total,
+                    'porcentaje' => $totalGastos > 0 ? round(($total / $totalGastos) * 100, 2) : 0,
+                ];
+            })->values();
+        }
+
+        // =========================
+        // 🔹 RECAUDO POR SUCURSAL (para consulta por casino)
+        // =========================
+        $recaudoPorSucursal = [];
+        if ($tipoConsulta === 'casino') {
+            // Agrupar lecturas por sucursal
+            $recaudoPorSucursal = DB::table('lectura_maquinas')
+                ->join('sucursales', 'lectura_maquinas.sucursal_id', '=', 'sucursales.id')
+                ->where('sucursales.casino_id', $req->casino_id)
+                ->when($req->filled('fecha'), fn($q) => $q->whereDate('lectura_maquinas.fecha', $req->fecha))
+                ->when(!$req->filled('fecha'), fn($q) => $q->whereDate('lectura_maquinas.fecha', now()))
+                ->select(
+                    'sucursales.id as sucursal_id',
+                    'sucursales.nombre as sucursal',
+                    DB::raw('SUM(lectura_maquinas.total_recaudo) as recaudo')
+                )
+                ->groupBy('sucursales.id', 'sucursales.nombre')
+                ->get();
+
+            // Agregar gastos a cada sucursal
+            foreach ($recaudoPorSucursal as $item) {
+                $gastosSucursal = $gastosPeriodo->where('sucursal_id', $item->sucursal_id)->sum('valor');
+                $item->gastos = $gastosSucursal;
+                $item->total_neto = $item->recaudo - $gastosSucursal;
+            }
+        }
+
         return Inertia::render('Lecturas/Index', [
             'lecturas'   => $lecturas,
             'ultimaFechaConfirmada' => $ultimaFechaConfirmada,
@@ -150,9 +233,14 @@ class LecturasController extends Controller
             'pendientes' => $pendientes,
             'total_registros' => $cantidadRegistros,
             'total_recaudado' => $totalRecaudado,
+            'total_gastos' => $totalGastos,
             'casinos'    => $casinos,
             'sucursales' => $sucursales,
             'maquinas'   => $maquinas,
+            'gastos_periodo' => $gastosPeriodo,
+            'gastos_por_tipo' => $gastosPorTipo,
+            'recaudo_por_sucursal' => $recaudoPorSucursal,
+            'tipo_consulta' => $tipoConsulta,
             'user'       => $user->only(['id', 'name', 'sucursal_id', 'casino_id']) + ['roles' => $user->getRoleNames()],
         ]);
     }

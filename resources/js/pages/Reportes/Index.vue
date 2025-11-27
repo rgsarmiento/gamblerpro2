@@ -16,16 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Check, ChevronsUpDown, Search, Trash2 } from "lucide-vue-next"
 import { Combobox, ComboboxAnchor, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxItemIndicator, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox"
 
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectLabel,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
-
 type Row = Record<string, any>
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -39,7 +29,8 @@ const props = defineProps<{
     mode: 'all_casinos' | 'casino' | 'sucursal' | 'maquina',
     inicio: string, fin: string,
     resumenGlobal: { neto_final: number, neto_inicial: number, creditos: number, recaudo: number, gastos: number, saldo: number },
-    gastosPorTipo: Row[],
+    gastosPorTipo: Row[], // Ahora contiene gastos detallados en modo sucursal
+    tablaGastosAgrupados?: Row[], // Nueva prop para gastos agrupados
     tablaPrincipal: Row[],
     tablaSecundaria: Row[],
     chart: { labels: string[], data: number[], title: string },
@@ -85,9 +76,6 @@ const maquinaSeleccionada = computed(() =>
     props.maquinas.find(m => m.id == form.value.maquina_id)
 )
 
-
-
-
 const actualizar = () => {
     if (form.value.range !== 'custom') {
         router.get('/reportes', form.value, { preserveState: true, replace: true })
@@ -114,21 +102,7 @@ const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { 
 const money = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v)
 const rojoSiNegativo = (v: number) => (v < 0 ? 'text-red-500 font-semibold' : '')
 
-// exportar tabla utilitario
-// const exportar = (headings: string[], rows: any[], nombre = 'reporte.xlsx') => {
-//     const form = document.createElement('form')
-//     form.method = 'GET'
-//     form.action = '/reportes/export'
-//     const add = (k: string, v: any) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = JSON.stringify(v); form.appendChild(i) }
-//     add('headings', headings)
-//     add('rows', rows)
-//     const n = document.createElement('input'); n.type = 'hidden'; n.name = 'name'; n.value = nombre; form.appendChild(n)
-//     document.body.appendChild(form)
-//     form.submit()
-//     form.remove()
-// }
-
-const exportar = async (headings, rows, nombre = 'reporte.xlsx') => {
+const exportar = async (headings: string[], rows: any[], nombre = 'reporte.xlsx') => {
     try {
         const response = await axios.post(
             '/reportes/export',
@@ -204,16 +178,29 @@ const exportGastos = () => {
     exportar(headings, rows, 'gastos.xlsx')
 }
 
+const exportGastosAgrupados = () => {
+    if (!props.tablaGastosAgrupados) return
+    const headings = ['Tipo de Gasto', 'Cantidad', 'Total', '%']
+    const rows = props.tablaGastosAgrupados.map(g => [
+        g.tipo,
+        g.cantidad,
+        g.total,
+        g.porcentaje + '%'
+    ])
+    exportar(headings, rows, 'gastos_agrupados.xlsx')
+}
+
 
 
 const exportTablaPrincipal = () => {
     let h: string[] = []; let r: any[] = []
     if (form.value.mode === 'all_casinos') {
-        h = ['Casino', 'Neto Final', 'Neto Inicial', 'Créditos', 'Recaudo']
-        r = props.tablaPrincipal.map(x => [x.casino, x.neto_final, x.neto_inicial, x.creditos, x.recaudo])
+        h = ['Casino', 'Recaudo', 'Gastos', 'Total Neto']
+        r = props.tablaPrincipal.map(x => [x.casino, x.recaudo, x.gastos, x.total_neto])
     } else if (form.value.mode === 'casino') {
-        h = ['Sucursal', 'Neto Final', 'Neto Inicial', 'Créditos', 'Recaudo']
-        r = props.tablaPrincipal.map(x => [x.sucursal, x.neto_final, x.neto_inicial, x.creditos, x.recaudo])
+        // SIMPLIFICADO
+        h = ['Sucursal', 'Recaudo', 'Gastos', 'Total Neto']
+        r = props.tablaPrincipal.map(x => [x.sucursal, x.recaudo, x.gastos, x.total_neto])
     } else if (form.value.mode === 'sucursal') {
         h = ['Máquina', 'Entrada', 'Salida', 'Jackpots', 'Neto Final', 'Neto Inicial', 'Créditos', 'Recaudo']
         r = props.tablaPrincipal.map(x => [x.maquina, x.entrada, x.salida, x.jackpots, x.neto_final, x.neto_inicial, x.creditos, x.recaudo])
@@ -231,7 +218,7 @@ const exportTablaSecundaria = () => {
 }
 
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
         style: 'currency',
         currency: 'COP',
@@ -322,17 +309,6 @@ const formatCurrency = (value) => {
                 </div>
 
                 <!-- 🟣 Fila 3 -> Máquina -->
-
-                <!-- <label class="text-sm font-semibold text-slate-300">Máquina</label>
-                    <select v-model="form.maquina_id" @change="actualizar" class="mt-1 w-full px-3 py-2 rounded border border-slate-600 
-                   bg-slate-800 text-slate-100 focus:border-indigo-400">
-                        <option value="">Todas</option>
-                        <option v-for="m in maquinasFiltradas" :key="m.id" :value="m.id">
-                            {{ m.ndi }} - {{ m.nombre }}
-                        </option>
-                    </select> -->
-
-
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-sm font-semibold text-slate-300">Maquinas</label>
@@ -376,11 +352,6 @@ const formatCurrency = (value) => {
                         </Combobox>
                     </div>
                 </div>
-
-
-
-
-
 
                 <!-- 🟣 Fila 4 → Botones -->
                 <div class="flex flex-wrap gap-4 pt-3">
@@ -470,93 +441,115 @@ const formatCurrency = (value) => {
 
                 <!-- tablas -->
                 <div class="overflow-auto">
-                    <!-- all_casinos / casino -->
-                    <table v-if="form.mode === 'all_casinos' || form.mode === 'casino'"
+                    <!-- all_casinos (SIMPLIFICADO) -->
+                    <table v-if="form.mode === 'all_casinos'"
                         class="min-w-[720px] w-full text-sm">
-                        <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">{{ form.mode === 'all_casinos' ? 'Casino' : 'Sucursal' }}</th>
-                                <th class="py-2">Neto Final</th>
-                                <th class="py-2">Neto Inicial</th>
-                                <th class="py-2">Créditos</th>
-                                <th class="py-2">Recaudo</th>
+                        <thead class="bg-emerald-900/20">
+                            <tr class="text-left border-b border-emerald-500/30">
+                                <th class="py-3 px-2">Casino</th>
+                                <th class="py-3 px-2">Recaudo</th>
+                                <th class="py-3 px-2">Gastos</th>
+                                <th class="py-3 px-2">Total Neto</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="x in props.tablaPrincipal" :key="(x.casino || x.sucursal)" class="border-b">
-                                <td class="py-2">{{ x.casino || x.sucursal }}</td>
-                                <td class="py-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2">{{ money(x.creditos) }}</td>
-                                <td class="py-2" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
+                            <tr v-for="x in props.tablaPrincipal" :key="x.casino" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
+                                <td class="py-2 px-2 font-medium">{{ x.casino }}</td>
+                                <td class="py-2 px-2 text-green-400">{{ money(x.recaudo) }}</td>
+                                <td class="py-2 px-2 text-rose-400">{{ money(x.gastos) }}</td>
+                                <td class="py-2 px-2 font-bold text-lg" :class="rojoSiNegativo(x.total_neto)">{{ money(x.total_neto) }}</td>
                             </tr>
                             <tr v-if="!props.tablaPrincipal.length">
-                                <td colspan="5" class="py-2 text-center text-muted-foreground">Sin datos</td>
+                                <td colspan="4" class="py-4 text-center text-muted-foreground">Sin datos</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                     <!-- casino (SIMPLIFICADO) -->
+                     <table v-else-if="form.mode === 'casino'"
+                        class="min-w-[720px] w-full text-sm">
+                        <thead class="bg-emerald-900/20">
+                            <tr class="text-left border-b border-emerald-500/30">
+                                <th class="py-3 px-2">Sucursal</th>
+                                <th class="py-3 px-2">Recaudo</th>
+                                <th class="py-3 px-2">Gastos</th>
+                                <th class="py-3 px-2">Total Neto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="x in props.tablaPrincipal" :key="x.sucursal" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
+                                <td class="py-2 px-2 font-medium">{{ x.sucursal }}</td>
+                                <td class="py-2 px-2 text-green-400">{{ money(x.recaudo) }}</td>
+                                <td class="py-2 px-2 text-rose-400">{{ money(x.gastos) }}</td>
+                                <td class="py-2 px-2 font-bold text-lg" :class="rojoSiNegativo(x.total_neto)">{{ money(x.total_neto) }}</td>
+                            </tr>
+                            <tr v-if="!props.tablaPrincipal.length">
+                                <td colspan="4" class="py-4 text-center text-muted-foreground">Sin datos</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <!-- sucursal -->
                     <table v-else-if="form.mode === 'sucursal'" class="min-w-[900px] w-full text-sm">
-                        <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">Máquina</th>
-                                <th class="py-2">Entrada</th>
-                                <th class="py-2">Salida</th>
-                                <th class="py-2">Jackpots</th>
-                                <th class="py-2">Neto Final</th>
-                                <th class="py-2">Neto Inicial</th>
-                                <th class="py-2">Créditos</th>
-                                <th class="py-2">Recaudo</th>
+                        <thead class="bg-emerald-900/20">
+                            <tr class="text-left border-b border-emerald-500/30">
+                                <th class="py-3 px-2">Máquina</th>
+                                <th class="py-3 px-2">Entrada</th>
+                                <th class="py-3 px-2">Salida</th>
+                                <th class="py-3 px-2">Jackpots</th>
+                                <th class="py-3 px-2">Neto Final</th>
+                                <th class="py-3 px-2">Neto Inicial</th>
+                                <th class="py-3 px-2">Créditos</th>
+                                <th class="py-3 px-2">Recaudo</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="x in props.tablaPrincipal" :key="x.maquina" class="border-b">
-                                <td class="py-2">{{ x.maquina }}</td>
-                                <td class="py-2">{{ money(x.entrada) }}</td>
-                                <td class="py-2">{{ money(x.salida) }}</td>
-                                <td class="py-2">{{ money(x.jackpots) }}</td>
-                                <td class="py-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2">{{ money(x.creditos) }}</td>
-                                <td class="py-2" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
+                            <tr v-for="x in props.tablaPrincipal" :key="x.maquina" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
+                                <td class="py-2 px-2 font-medium">{{ x.maquina }}</td>
+                                <td class="py-2 px-2">{{ money(x.entrada) }}</td>
+                                <td class="py-2 px-2">{{ money(x.salida) }}</td>
+                                <td class="py-2 px-2">{{ money(x.jackpots) }}</td>
+                                <td class="py-2 px-2">{{ money(x.neto_final) }}</td>
+                                <td class="py-2 px-2">{{ money(x.neto_inicial) }}</td>
+                                <td class="py-2 px-2">{{ money(x.creditos) }}</td>
+                                <td class="py-2 px-2 font-bold" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
                             </tr>
                             <tr v-if="!props.tablaPrincipal.length">
-                                <td colspan="8" class="py-2 text-center text-muted-foreground">Sin datos</td>
+                                <td colspan="8" class="py-4 text-center text-muted-foreground">Sin datos</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <!-- maquina -->
                     <table v-else class="min-w-[1000px] w-full text-sm">
-                        <thead>
-                            <tr class="text-left border-b">
-                                <th class="py-2">Fecha</th>
-                                <th class="py-2">Máquina</th>
-                                <th class="py-2">Entrada</th>
-                                <th class="py-2">Salida</th>
-                                <th class="py-2">Jackpots</th>
-                                <th class="py-2">Neto Final</th>
-                                <th class="py-2">Neto Inicial</th>
-                                <th class="py-2">Créditos</th>
-                                <th class="py-2">Recaudo</th>
+                        <thead class="bg-emerald-900/20">
+                            <tr class="text-left border-b border-emerald-500/30">
+                                <th class="py-3 px-2">Fecha</th>
+                                <th class="py-3 px-2">Máquina</th>
+                                <th class="py-3 px-2">Entrada</th>
+                                <th class="py-3 px-2">Salida</th>
+                                <th class="py-3 px-2">Jackpots</th>
+                                <th class="py-3 px-2">Neto Final</th>
+                                <th class="py-3 px-2">Neto Inicial</th>
+                                <th class="py-3 px-2">Créditos</th>
+                                <th class="py-3 px-2">Recaudo</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="x in props.tablaPrincipal" :key="`${x.fecha}-${x.maquina_id}`" class="border-b">
-                                <td class="py-2">{{ x.fecha }}</td>
-                                <td class="py-2">{{ x.maquina?.ndi }} - {{ x.maquina?.nombre }}</td>
-                                <td class="py-2">{{ money(x.entrada) }}</td>
-                                <td class="py-2">{{ money(x.salida) }}</td>
-                                <td class="py-2">{{ money(x.jackpots) }}</td>
-                                <td class="py-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2">{{ money(x.total_creditos) }}</td>
-                                <td class="py-2" :class="rojoSiNegativo(x.total_recaudo)">{{ money(x.total_recaudo) }}
+                            <tr v-for="x in props.tablaPrincipal" :key="`${x.fecha}-${x.maquina_id}`" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
+                                <td class="py-2 px-2">{{ x.fecha }}</td>
+                                <td class="py-2 px-2 font-medium">{{ x.maquina?.ndi }} - {{ x.maquina?.nombre }}</td>
+                                <td class="py-2 px-2">{{ money(x.entrada) }}</td>
+                                <td class="py-2 px-2">{{ money(x.salida) }}</td>
+                                <td class="py-2 px-2">{{ money(x.jackpots) }}</td>
+                                <td class="py-2 px-2">{{ money(x.neto_final) }}</td>
+                                <td class="py-2 px-2">{{ money(x.neto_inicial) }}</td>
+                                <td class="py-2 px-2">{{ money(x.total_creditos) }}</td>
+                                <td class="py-2 px-2 font-bold" :class="rojoSiNegativo(x.total_recaudo)">{{ money(x.total_recaudo) }}
                                 </td>
                             </tr>
                             <tr v-if="!props.tablaPrincipal.length">
-                                <td colspan="9" class="py-2 text-center text-muted-foreground">Sin datos</td>
+                                <td colspan="9" class="py-4 text-center text-muted-foreground">Sin datos</td>
                             </tr>
                         </tbody>
                     </table>
@@ -565,63 +558,114 @@ const formatCurrency = (value) => {
 
 
             
+            <!-- SECCIÓN GASTOS (Oculta si es modo máquina o all_casinos) -->
+            <div v-if="form.mode !== 'maquina' && form.mode !== 'all_casinos'" class="space-y-4">
 
-            <!-- MODO AGRUPADO -->
-            <div v-if="['all_casinos', 'casino'].includes(mode)" class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+                <!-- 1. GASTOS DETALLADOS (Solo en modo sucursal) -->
+                <div v-if="form.mode === 'sucursal'" class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
                 
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-semibold">Gastos Agrupados</h2>
-                    <button @click="exportGastos" class="text-sm px-3 py-1 rounded border">Exportar</button>
-                </div>
-                <div class="bg-card rounded-lg shadow border">
-                    <Table class="min-w-[520px] w-full text-sm">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Sucursal</TableHead>
-                                <TableHead>Total Gastos</TableHead>
-                            </TableRow>
-                        </TableHeader>
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="font-semibold text-rose-200">Gastos Detallados</h2>
+                        <button @click="exportGastos" class="text-sm px-3 py-1 rounded border border-rose-500/50 hover:bg-rose-500/20">Exportar</button>
+                    </div>
+                    <div class="bg-card/50 rounded-lg shadow border border-rose-500/20 overflow-hidden">
+                        <Table class="min-w-[520px] w-full text-sm">
+                            <thead class="bg-rose-900/20">
+                                <tr class="text-left border-b border-rose-500/30">
+                                    <th class="py-3 px-2 text-rose-100">Fecha</th>
+                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
+                                    <th class="py-3 px-2 text-rose-100">Tipo</th>
+                                    <th class="py-3 px-2 text-rose-100">Descripción</th>
+                                    <th class="py-3 px-2 text-rose-100">Total</th>
+                                </tr>
+                            </thead>
 
-                        <TableBody>
-                            <TableRow v-for="g in gastosPorTipo" :key="g.sucursal">
-                                <TableCell>{{ g.sucursal }}</TableCell>
-                                <TableCell>{{ money(g.total) }}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                            <TableBody>
+                                <TableRow v-for="g in gastosPorTipo" :key="g.id" class="border-b border-rose-500/10 hover:bg-rose-500/5">
+                                    <TableCell class="py-2 px-2">{{ g.fecha }}</TableCell>
+                                    <TableCell class="py-2 px-2">{{ g.sucursal }}</TableCell>
+                                    <TableCell class="py-2 px-2">
+                                        <span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 text-xs border border-rose-500/30">
+                                            {{ g.tipo }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell class="py-2 px-2 text-muted-foreground italic">{{ g.descripcion }}</TableCell>
+                                    <TableCell class="py-2 px-2 font-medium">{{ formatCurrency(g.total) }}</TableCell>
+                                </TableRow>
+                                <TableRow v-if="!gastosPorTipo.length">
+                                    <TableCell colspan="5" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
-            </div>
 
-            <!-- MODO DETALLADO -->
-            <div v-else class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
-               
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="font-semibold">Gastos Detallados</h2>
-                    <button @click="exportGastos" class="text-sm px-3 py-1 rounded border">Exportar</button>
-                </div>
-                <div class="bg-card rounded-lg shadow border">
-                    <Table class="min-w-[520px] w-full text-sm">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Sucursal</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Descripción</TableHead>
-                                <TableHead>Total</TableHead>
-                            </TableRow>
-                        </TableHeader>
 
-                        <TableBody>
-                            <TableRow v-for="g in gastosPorTipo" :key="g.id">
-                                <TableCell>{{ g.fecha }}</TableCell>
-                                <TableCell>{{ g.sucursal }}</TableCell>
-                                <TableCell>{{ g.tipo }}</TableCell>
-                                <TableCell>{{ g.descripcion }}</TableCell>
-                                <TableCell>{{ formatCurrency(g.total) }}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                <!-- 2. GASTOS AGRUPADOS (En modo sucursal o casino) -->
+                <div class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+                    
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="font-semibold text-rose-200">
+                            {{ form.mode === 'sucursal' ? 'Gastos Agrupados por Tipo' : 'Gastos por Sucursal' }}
+                        </h2>
+                        <button @click="form.mode === 'sucursal' ? exportGastosAgrupados() : exportGastos()" 
+                            class="text-sm px-3 py-1 rounded border border-rose-500/50 hover:bg-rose-500/20">Exportar</button>
+                    </div>
+                    
+                    <div class="bg-card/50 rounded-lg shadow border border-rose-500/20 overflow-hidden">
+                        
+                        <!-- Tabla Agrupada por TIPO (Sucursal) -->
+                        <Table v-if="form.mode === 'sucursal'" class="min-w-[520px] w-full text-sm">
+                            <thead class="bg-rose-900/20">
+                                <tr class="text-left border-b border-rose-500/30">
+                                    <th class="py-3 px-2 text-rose-100">Tipo de Gasto</th>
+                                    <th class="py-3 px-2 text-rose-100">Cantidad</th>
+                                    <th class="py-3 px-2 text-rose-100">Total</th>
+                                    <th class="py-3 px-2 text-rose-100">%</th>
+                                </tr>
+                            </thead>
+                            <TableBody>
+                                <TableRow v-for="g in props.tablaGastosAgrupados" :key="g.tipo" class="border-b border-rose-500/10 hover:bg-rose-500/5">
+                                    <TableCell class="py-2 px-2 font-medium">{{ g.tipo }}</TableCell>
+                                    <TableCell class="py-2 px-2">{{ g.cantidad }}</TableCell>
+                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
+                                    <TableCell class="py-2 px-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs w-8">{{ g.porcentaje }}%</span>
+                                            <div class="h-1.5 w-24 bg-rose-900/50 rounded-full overflow-hidden">
+                                                <div class="h-full bg-rose-400" :style="{ width: g.porcentaje + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-if="!props.tablaGastosAgrupados?.length">
+                                    <TableCell colspan="4" class="text-center py-4 text-muted-foreground">No hay datos agrupados</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <!-- Tabla Agrupada por SUCURSAL (Casino) -->
+                        <Table v-else class="min-w-[520px] w-full text-sm">
+                            <thead class="bg-rose-900/20">
+                                <tr class="border-b border-rose-500/30">
+                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
+                                    <th class="py-3 px-2 text-rose-100">Total Gastos</th>
+                                </tr>
+                            </thead>
+                            <TableBody>
+                                <TableRow v-for="g in gastosPorTipo" :key="g.sucursal" class="border-b border-rose-500/10 hover:bg-rose-500/5">
+                                    <TableCell class="py-2 px-2 font-medium">{{ g.sucursal }}</TableCell>
+                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
+                                </TableRow>
+                                <TableRow v-if="!gastosPorTipo.length">
+                                    <TableCell colspan="2" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                    </div>
                 </div>
+
             </div>
 
 
@@ -651,6 +695,13 @@ const formatCurrency = (value) => {
                                 <td class="py-2">{{ money(x.creditos) }}</td>
                                 <td class="py-2" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
                                 <td class="py-2">{{ x.porcentaje }}%</td>
+                                <TableCell class="py-2 px-2">
+                                        <div class="flex items-center gap-2">                                            
+                                            <div class="h-1.5 w-24 bg-green-900/50 rounded-full overflow-hidden">
+                                                <div class="h-full bg-green-400" :style="{ width: x.porcentaje + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </TableCell>
                             </tr>
                         </tbody>
                     </table>

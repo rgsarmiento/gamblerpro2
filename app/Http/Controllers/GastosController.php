@@ -78,6 +78,36 @@ class GastosController extends Controller
     $proveedores = Proveedor::select('id', 'identificacion', 'nombre', 'sucursal_id')->get();
 
     // =========================
+    // 🔹 FECHA DE CORTE (Última lectura confirmada)
+    // =========================
+    $ultimaFechaConfirmada = null;
+    
+    // Clonar query base de lecturas para buscar la fecha
+    // Nota: Debemos buscar en LecturaMaquina, no en Gasto
+    $qLecturas = \App\Models\LecturaMaquina::query();
+
+    if ($user->hasRole('master_admin')) {
+        if ($req->filled('casino_id')) {
+            $qLecturas->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
+        }
+        if ($req->filled('sucursal_id')) {
+            $qLecturas->where('sucursal_id', $req->sucursal_id);
+        }
+    } elseif ($user->hasRole('casino_admin')) {
+        $qLecturas->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+        if ($req->filled('sucursal_id')) {
+            $qLecturas->where('sucursal_id', $req->sucursal_id);
+        }
+    } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+        $qLecturas->where('sucursal_id', $user->sucursal_id);
+    }
+
+    $ultimaFechaConfirmada = $qLecturas->where('confirmado', 1)
+        ->orderByDesc('fecha')
+        ->value('fecha');
+
+
+    // =========================
     // 🔹 RETORNO A VUE
     // =========================
     return Inertia::render('Gastos/Index', [
@@ -88,6 +118,7 @@ class GastosController extends Controller
         'sucursales' => $sucursales,
         'tipos_gasto' => $tiposGasto,
         'proveedores' => $proveedores,
+        'ultimaFechaConfirmada' => $ultimaFechaConfirmada, // 👈 Nueva prop
         'user' => $user->only(['id', 'name', 'sucursal_id', 'casino_id']) + ['roles' => $user->getRoleNames()],
     ]);
 }
@@ -129,7 +160,22 @@ class GastosController extends Controller
      */
     public function update(Request $req, Gasto $gasto)
     {
-        $this->authorize('update', $gasto);
+        $user = $req->user();
+
+        // 🔒 Validar restricción de fecha para no admins
+        if (!$user->hasAnyRole(['master_admin', 'casino_admin'])) {
+            $ultimaConfirmada = \App\Models\LecturaMaquina::where('sucursal_id', $gasto->sucursal_id)
+                ->where('confirmado', 1)
+                ->orderByDesc('fecha')
+                ->value('fecha');
+
+            if ($ultimaConfirmada && $gasto->fecha <= $ultimaConfirmada) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'fecha' => "No puedes modificar gastos de fechas ya cerradas ($ultimaConfirmada)."
+                ]);
+            }
+        }
+
         $data = $req->validate([
             'tipo_gasto_id' => 'required|exists:tipos_gasto,id',
             'proveedor_id' => 'required|exists:proveedores,id',
@@ -137,8 +183,10 @@ class GastosController extends Controller
             'valor' => 'required|numeric|min:0.01',
             'descripcion' => 'nullable|string'
         ]);
-        $gasto->fill($data)->save();
-        return $gasto->fresh(['tipo', 'proveedor', 'sucursal']);
+        
+        $gasto->update($data);
+        
+        return back()->with('success', 'Gasto actualizado correctamente');
     }
 
     /**
@@ -146,7 +194,22 @@ class GastosController extends Controller
      */
     public function destroy(Request $req, Gasto $gasto)
     {
-        $this->authorize('update', $gasto);
+        $user = $req->user();
+
+        // 🔒 Validar restricción de fecha para no admins
+        if (!$user->hasAnyRole(['master_admin', 'casino_admin'])) {
+            $ultimaConfirmada = \App\Models\LecturaMaquina::where('sucursal_id', $gasto->sucursal_id)
+                ->where('confirmado', 1)
+                ->orderByDesc('fecha')
+                ->value('fecha');
+
+            if ($ultimaConfirmada && $gasto->fecha <= $ultimaConfirmada) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'gasto' => "No puedes eliminar gastos de fechas ya cerradas ($ultimaConfirmada)."
+                ]);
+            }
+        }
+
         $gasto->delete();
         return redirect()->back()->with('success', 'Gasto eliminado correctamente');
     }
