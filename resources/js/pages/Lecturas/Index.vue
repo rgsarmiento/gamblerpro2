@@ -382,14 +382,14 @@ const submitEdit = () => {
             })
                 " class="space-y-4 bg-card p-4 rounded">
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Fecha de Lectura</label>
                         <!-- <input type="date" v-model="form.fecha" :min="minFecha" -->
-                        <input type="date" v-model="form.fecha" class="border rounded px-2 py-1 w-full" />
+                        <input type="date" v-model="form.fecha" class="border rounded px-2 py-2 w-full" />
                     </div>
                 </div>
-
+               
 
                 <!-- Select casino (solo para master_admin) -->
                 <div class="grid grid-cols-2 gap-4">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watchEffect, nextTick } from 'vue'
 import { toast } from 'vue-sonner'
 import { usePage } from '@inertiajs/vue3'
 
@@ -10,6 +10,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+    AlertDialog,
+    AlertDialogTrigger,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogFooter,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogCancel,
+    AlertDialogAction
+} from '@/components/ui/alert-dialog'
 import { Trash2, Pencil } from "lucide-vue-next"
 
 interface Retencion {
@@ -26,12 +37,13 @@ interface Retencion {
 
 const props = defineProps<{
     retenciones: any
-    total_registros: number
-    total_premios: number
-    total_retenciones: number
+    totalRegistros: number
+    totalPremios: number
+    totalRetenciones: number
     casinos: Array<{ id: number, nombre: string }>
     sucursales: Array<{ id: number, nombre: string, casino_id: number }>
     filters: { fecha: string, casino_id?: number, sucursal_id?: number }
+    ultimaFechaConfirmada: string | null
     user: { id: number, name: string, roles: string[], sucursal_id?: number, casino_id?: number }
 }>()
 
@@ -41,7 +53,7 @@ const form = useForm({
     sucursal_id: props.user.sucursal_id || null as number | null,
     cedula: '',
     nombre: '',
-    valor_premio: '',
+    valor_premio: '' as string | number,
     observacion: '',
 })
 
@@ -63,19 +75,29 @@ const sucursalesFiltradas = computed(() => {
 })
 
 const valorRetencion = computed(() => {
-    const premio = parseFloat(form.valor_premio) || 0
-    return (premio * 0.20).toFixed(2)
+    const valorStr = String(form.valor_premio || 0)
+    const premio = parseFloat(valorStr) || 0
+    return premio * 0.20
 })
 
-const openModal = (retencion?: Retencion) => {
+const valorNeto = computed(() => {
+    const valorStr = String(form.valor_premio || 0)
+    const premio = parseFloat(valorStr) || 0
+    const retencion = valorRetencion.value
+    return premio - retencion
+})
+
+const openModal = async (retencion?: Retencion) => {
     if (retencion) {
         isEditing.value = true
         form.id = retencion.id
-        form.fecha = retencion.fecha
+        form.fecha = retencion.fecha.split('T')[0]
         form.cedula = retencion.cedula
         form.nombre = retencion.nombre
-        form.valor_premio = String(retencion.valor_premio)
         form.observacion = retencion.observacion || ''
+        
+        await nextTick()
+        form.valor_premio = Number(retencion.valor_premio)
     } else {
         isEditing.value = false
         form.reset()
@@ -130,22 +152,27 @@ const applyFilters = () => {
     }, { preserveState: true })
 }
 
+const canEdit = (retencionFecha: string) => {
+    if (role.value === 'master_admin' || role.value === 'casino_admin') return true
+    if (!props.ultimaFechaConfirmada) return true
+    return retencionFecha > props.ultimaFechaConfirmada
+}
+
+const formatDate = (dateString: string) => {
+    if (!dateString) return ''
+    const parts = dateString.split('T')[0].split('-')
+    if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`
+    }
+    return dateString
+}
+
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CO', {
         style: 'currency',
         currency: 'COP',
         maximumFractionDigits: 0,
     }).format(value)
-}
-
-const formatDate = (dateString: string) => {
-    if (!dateString) return ''
-    const date = new Date(dateString + 'T00:00:00') // Agregar hora para evitar problemas de zona horaria
-    return date.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    })
 }
 
 const page = usePage()
@@ -172,7 +199,7 @@ watchEffect(() => {
 
             <!-- Filtros -->
             <div class="bg-card p-4 rounded-lg border space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-3 md:grid-cols-4 gap-4">
                     <div>
                         <label class="text-sm font-medium">Fecha</label>
                         <Input type="date" v-model="filterForm.fecha" @change="applyFilters" />
@@ -180,7 +207,7 @@ watchEffect(() => {
                     
                     <div v-if="role === 'master_admin'">
                         <label class="text-sm font-medium">Casino</label>
-                        <Select v-model="filterForm.casino_id" @update:model-value="applyFilters">
+                        <Select v-model="filterForm.casino_id" @update:model-value="applyFilters" class=" w-full">
                             <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem :value="null">Todos</SelectItem>
@@ -191,7 +218,7 @@ watchEffect(() => {
 
                     <div v-if="role === 'master_admin' || role === 'casino_admin'">
                         <label class="text-sm font-medium">Sucursal</label>
-                        <Select v-model="filterForm.sucursal_id" @update:model-value="applyFilters">
+                        <Select v-model="filterForm.sucursal_id" @update:model-value="applyFilters" class=" w-full">
                             <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem :value="null">Todas</SelectItem>
@@ -202,18 +229,22 @@ watchEffect(() => {
                 </div>
 
                 <!-- Totales -->
-                <div class="grid grid-cols-3 gap-4 pt-4 border-t">
+                <div class="grid grid-cols-4 gap-4 pt-4 border-t">
                     <div class="bg-blue-50 dark:bg-blue-950 p-3 rounded">
                         <p class="text-sm text-muted-foreground">Total Registros</p>
-                        <p class="text-2xl font-bold">{{ total_registros }}</p>
+                        <p class="text-2xl font-bold">{{ totalRegistros }}</p>
                     </div>
                     <div class="bg-green-50 dark:bg-green-950 p-3 rounded">
                         <p class="text-sm text-muted-foreground">Total Premios</p>
-                        <p class="text-2xl font-bold text-green-600">{{ formatCurrency(total_premios) }}</p>
+                        <p class="text-2xl font-bold text-green-600">{{ formatCurrency(totalPremios) }}</p>
                     </div>
                     <div class="bg-orange-50 dark:bg-orange-950 p-3 rounded">
                         <p class="text-sm text-muted-foreground">Total Retenciones</p>
-                        <p class="text-2xl font-bold text-orange-600">{{ formatCurrency(total_retenciones) }}</p>
+                        <p class="text-2xl font-bold text-orange-600">{{ formatCurrency(totalRetenciones) }}</p>
+                    </div>
+                    <div class="bg-purple-50 dark:bg-purple-950 p-3 rounded">
+                        <p class="text-sm text-muted-foreground">Neto a Pagar</p>
+                        <p class="text-2xl font-bold text-purple-600">{{ formatCurrency(totalPremios - totalRetenciones) }}</p>
                     </div>
                 </div>
             </div>
@@ -229,27 +260,75 @@ watchEffect(() => {
                             <TableHead>Nombre</TableHead>
                             <TableHead>Valor Premio</TableHead>
                             <TableHead>Retención (20%)</TableHead>
+                            <TableHead>Neto</TableHead>
                             <TableHead>Observación</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="r in retenciones.data" :key="r.id">
-                            <TableCell>{{ r.fecha }}</TableCell>
+                            <TableCell>{{ formatDate(r.fecha) }}</TableCell>
                             <TableCell v-if="role !== 'cajero' && role !== 'sucursal_admin'">{{ r.sucursal?.nombre }}</TableCell>
                             <TableCell>{{ r.cedula }}</TableCell>
                             <TableCell>{{ r.nombre }}</TableCell>
                             <TableCell class="text-green-600 font-semibold">{{ formatCurrency(r.valor_premio) }}</TableCell>
                             <TableCell class="text-orange-600 font-semibold">{{ formatCurrency(r.valor_retencion) }}</TableCell>
+                            <TableCell class="text-purple-600 font-semibold">{{ formatCurrency(r.valor_premio - r.valor_retencion) }}</TableCell>
                             <TableCell class="text-sm text-muted-foreground">{{ r.observacion || '-' }}</TableCell>
                             <TableCell>
                                 <div class="flex gap-2">
-                                    <Button variant="outline" size="sm" @click="openModal(r)">
-                                        <Pencil class="w-4 h-4" />
+                                    <Button 
+                                        v-if="canEdit(r.fecha)"
+                                        variant="outline" 
+                                        size="sm"
+                                        @click="openModal(r)"
+                                    >
+                                        <Pencil class="h-4 w-4" />
                                     </Button>
-                                    <Button variant="destructive" size="sm" @click="deleteRetencion(r.id)">
-                                        <Trash2 class="w-4 h-4" />
+                                    <Button 
+                                        v-else 
+                                        variant="outline" 
+                                        size="sm" 
+                                        disabled 
+                                        class="opacity-50 cursor-not-allowed"
+                                    >
+                                        <Pencil class="h-4 w-4" />
                                     </Button>
+
+                                    <AlertDialog>
+                                        <AlertDialogTrigger as-child>
+                                            <Button 
+                                                variant="destructive" 
+                                                size="sm" 
+                                                :disabled="!canEdit(r.fecha)" 
+                                                :class="{'opacity-50 cursor-not-allowed': !canEdit(r.fecha)}"
+                                            >
+                                                <Trash2 class="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Eliminar Retención?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    ¿Está seguro de eliminar la retención de {{ r.nombre }} ({{ r.cedula }})?
+                                                    <br><br>
+                                                    <strong>Premio:</strong> {{ formatCurrency(r.valor_premio) }}<br>
+                                                    <strong>Retención:</strong> {{ formatCurrency(r.valor_retencion) }}
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction @click="router.delete(`/retenciones/${r.id}`, {
+                                                    preserveScroll: true,
+                                                    onSuccess: () => toast.success('Retención eliminada correctamente'),
+                                                    onError: () => toast.error('Error al eliminar retención'),
+                                                })">
+                                                    Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -308,7 +387,12 @@ watchEffect(() => {
 
                             <div>
                                 <label class="text-sm font-medium">Retención (20%)</label>
-                                <Input :value="formatCurrency(parseFloat(valorRetencion))" disabled class="bg-muted" />
+                                <Input :value="formatCurrency(valorRetencion)" disabled class="bg-muted" />
+                            </div>
+
+                            <div class="col-span-2">
+                                <label class="text-sm font-medium">Neto a Pagar</label>
+                                <Input :value="formatCurrency(valorNeto)" disabled class="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-semibold" />
                             </div>
 
                             <div class="col-span-2">

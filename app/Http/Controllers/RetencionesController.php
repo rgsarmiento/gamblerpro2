@@ -101,6 +101,33 @@ class RetencionesController extends Controller
                 ->get()
             : [];
 
+        // =========================
+        // 🔹 FECHA DE CORTE (Última lectura confirmada)
+        // =========================
+        $ultimaFechaConfirmada = null;
+        
+        $qLecturas = \App\Models\LecturaMaquina::query();
+
+        if ($user->hasRole('master_admin')) {
+            if ($req->filled('casino_id')) {
+                $qLecturas->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $req->casino_id));
+            }
+            if ($req->filled('sucursal_id')) {
+                $qLecturas->where('sucursal_id', $req->sucursal_id);
+            }
+        } elseif ($user->hasRole('casino_admin')) {
+            $qLecturas->whereHas('sucursal', fn($qq) => $qq->where('casino_id', $user->casino_id));
+            if ($req->filled('sucursal_id')) {
+                $qLecturas->where('sucursal_id', $req->sucursal_id);
+            }
+        } elseif ($user->hasAnyRole(['sucursal_admin', 'cajero'])) {
+            $qLecturas->where('sucursal_id', $user->sucursal_id);
+        }
+
+        $ultimaFechaConfirmada = $qLecturas->where('confirmado', 1)
+            ->orderByDesc('fecha')
+            ->value('fecha');
+
         return Inertia::render('Retenciones/Index', [
             'retenciones' => $retenciones,
             'totalPremios' => $totalPremios,
@@ -108,6 +135,7 @@ class RetencionesController extends Controller
             'totalRegistros' => $totalRegistros,
             'casinos' => $casinos,
             'sucursales' => $sucursales,
+            'ultimaFechaConfirmada' => $ultimaFechaConfirmada,
             'filters' => [
                 'fecha' => $req->fecha ?? now()->format('Y-m-d'),
                 'casino_id' => $req->casino_id,
