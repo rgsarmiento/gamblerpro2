@@ -91,6 +91,10 @@ const openModal = (p?: Proveedor) => {
     form.sucursal_id = String(p.sucursal_id)
   } else {
     form.reset()
+    // Restaurar sucursal_id para sucursal_admin y cajero
+    if (props.user.roles.some(r => ['sucursal_admin', 'cajero'].includes(r)) && props.user.sucursal_id) {
+      form.sucursal_id = String(props.user.sucursal_id)
+    }
   }
 }
 
@@ -116,7 +120,11 @@ const save = () => {
         toast.success('Proveedor creado correctamente')
         closeModal()
       },
-      onError: (e) => toast.error(e.identificacion ?? 'Error al crear proveedor'),
+      onError: (errors) => {
+        console.error('Errores de validación:', errors)
+        const errorMsg = Object.values(errors).flat().join(', ') || 'Error al crear proveedor'
+        toast.error(errorMsg)
+      },
     })
   }
 }
@@ -150,7 +158,7 @@ const toggleActivo = (p: Proveedor, nuevoEstado: boolean) => {
 /* ======================
    Rol con sucursal fija
 ====================== */
-if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
+if (props.user.roles.some(r => ['sucursal_admin', 'cajero'].includes(r)) && props.user.sucursal_id) {
   form.sucursal_id = String(props.user.sucursal_id)
 }
 </script>
@@ -164,6 +172,15 @@ if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">📦 Proveedores</h1>
         <Button @click="openModal()" class="bg-indigo-600 text-white">Nuevo proveedor</Button>
+      </div>
+
+      <!-- Búsqueda -->
+      <div class="bg-card p-4 rounded-lg border">
+        <Input 
+          v-model="search" 
+          placeholder="Buscar por nombre o identificación..." 
+          class="max-w-md"
+        />
       </div>
 
       <!-- Filtros -->
@@ -253,6 +270,22 @@ if (props.user.roles.includes('sucursal_admin') && props.user.sucursal_id) {
           </DialogHeader>
 
           <form @submit.prevent="save" class="grid grid-cols-2 gap-4 mt-4">
+            <!-- Selector de Sucursal (Solo para Admins) -->
+            <div v-if="role === 'master_admin' || role === 'casino_admin'" class="col-span-2">
+              <label class="text-sm font-medium block mb-2">Sucursal *</label>
+              <Select v-model="form.sucursal_id">
+                <SelectTrigger><SelectValue placeholder="Seleccione sucursal" /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Sucursales</SelectLabel>
+                    <SelectItem v-for="s in (role === 'master_admin' && selectedCasino ? sucursalesFiltradas : props.sucursales)" :key="s.id" :value="String(s.id)">
+                      {{ s.nombre }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Input v-model="form.nombre" placeholder="Nombre del proveedor" />
             <Input v-model="form.identificacion" placeholder="Identificación" />
             <Input v-model="form.telefono" placeholder="Teléfono" />

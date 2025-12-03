@@ -20,7 +20,9 @@ class ProveedoresController extends Controller
         $user = $req->user();
 
         // Base query
-        $q = Proveedor::with('sucursal:id,nombre,casino_id')->orderBy('nombre');
+        $q = Proveedor::with('sucursal:id,nombre,casino_id')
+            ->orderByDesc('created_at')
+            ->orderBy('nombre');
 
         // 🔹 Si el usuario es master_admin o casino_admin, permitir filtrar por casino o sucursal
         if ($user->hasRole('master_admin')) {

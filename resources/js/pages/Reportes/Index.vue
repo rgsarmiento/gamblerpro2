@@ -396,8 +396,6 @@ const formatNumber = (value) => {
             </div>
 
 
-           
-
             <!-- Resumen Global -->
             <div class="p-4 rounded-lg shadow border 
             bg-gradient-to-br from-indigo-600/30 to-indigo-900/20 
@@ -436,6 +434,70 @@ const formatNumber = (value) => {
                 </div>
             </div>
 
+            <!-- 2. GASTOS AGRUPADOS (En modo sucursal o casino) -->
+                <div class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+                    
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="font-semibold text-rose-200">
+                            {{ form.mode === 'sucursal' ? 'Gastos Agrupados por Tipo' : 'Gastos por Sucursal' }}
+                        </h2>
+                        <button @click="form.mode === 'sucursal' ? exportGastosAgrupados() : exportGastos()" 
+                            class="text-sm px-3 py-1 rounded border border-rose-500/50 hover:bg-rose-500/20">Exportar</button>
+                    </div>
+                    
+                    <div class="bg-card/50 rounded-lg shadow border border-rose-500/20 overflow-hidden">
+                        
+                        <!-- Tabla Agrupada por TIPO (Sucursal) -->
+                        <Table v-if="form.mode === 'sucursal'" class="min-w-[520px] w-full text-sm">
+                            <thead class="bg-rose-900/20">
+                                <tr class="text-left border-b border-rose-500/30">
+                                    <th class="py-3 px-2 text-rose-100">Tipo de Gasto</th>
+                                    <th class="py-3 px-2 text-rose-100">Cantidad</th>
+                                    <th class="py-3 px-2 text-rose-100">Total</th>
+                                    <th class="py-3 px-2 text-rose-100">%</th>
+                                </tr>
+                            </thead>
+                            <TableBody>
+                                <TableRow v-for="g in props.tablaGastosAgrupados" :key="g.tipo" class="border-b border-rose-500/10 hover:bg-rose-500/5">
+                                    <TableCell class="py-2 px-2 font-medium">{{ g.tipo }}</TableCell>
+                                    <TableCell class="py-2 px-2">{{ g.cantidad }}</TableCell>
+                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
+                                    <TableCell class="py-2 px-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs w-8">{{ g.porcentaje }}%</span>
+                                            <div class="h-1.5 w-24 bg-rose-900/50 rounded-full overflow-hidden">
+                                                <div class="h-full bg-rose-400" :style="{ width: g.porcentaje + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow v-if="!props.tablaGastosAgrupados?.length">
+                                    <TableCell colspan="4" class="text-center py-4 text-muted-foreground">No hay datos agrupados</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <!-- Tabla Agrupada por SUCURSAL (Casino) -->
+                        <Table v-else class="min-w-[520px] w-full text-sm">
+                            <thead class="bg-rose-900/20">
+                                <tr class="border-b border-rose-500/30">
+                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
+                                    <th class="py-3 px-2 text-rose-100">Total Gastos</th>
+                                </tr>
+                            </thead>
+                            <TableBody>
+                                <TableRow v-for="g in gastosPorTipo" :key="g.sucursal" class="border-b border-rose-500/10 hover:bg-rose-500/5">
+                                    <TableCell class="py-2 px-2 font-medium">{{ g.sucursal }}</TableCell>
+                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
+                                </TableRow>
+                                <TableRow v-if="!gastosPorTipo.length">
+                                    <TableCell colspan="2" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                    </div>
+                </div>
 
             <!-- Tabla principal (según modo) -->
             <div class="p-4 rounded-lg shadow border 
@@ -611,72 +673,6 @@ const formatNumber = (value) => {
                                 </TableRow>
                             </TableBody>
                         </Table>
-                    </div>
-                </div>
-
-
-                <!-- 2. GASTOS AGRUPADOS (En modo sucursal o casino) -->
-                <div class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
-                    
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="font-semibold text-rose-200">
-                            {{ form.mode === 'sucursal' ? 'Gastos Agrupados por Tipo' : 'Gastos por Sucursal' }}
-                        </h2>
-                        <button @click="form.mode === 'sucursal' ? exportGastosAgrupados() : exportGastos()" 
-                            class="text-sm px-3 py-1 rounded border border-rose-500/50 hover:bg-rose-500/20">Exportar</button>
-                    </div>
-                    
-                    <div class="bg-card/50 rounded-lg shadow border border-rose-500/20 overflow-hidden">
-                        
-                        <!-- Tabla Agrupada por TIPO (Sucursal) -->
-                        <Table v-if="form.mode === 'sucursal'" class="min-w-[520px] w-full text-sm">
-                            <thead class="bg-rose-900/20">
-                                <tr class="text-left border-b border-rose-500/30">
-                                    <th class="py-3 px-2 text-rose-100">Tipo de Gasto</th>
-                                    <th class="py-3 px-2 text-rose-100">Cantidad</th>
-                                    <th class="py-3 px-2 text-rose-100">Total</th>
-                                    <th class="py-3 px-2 text-rose-100">%</th>
-                                </tr>
-                            </thead>
-                            <TableBody>
-                                <TableRow v-for="g in props.tablaGastosAgrupados" :key="g.tipo" class="border-b border-rose-500/10 hover:bg-rose-500/5">
-                                    <TableCell class="py-2 px-2 font-medium">{{ g.tipo }}</TableCell>
-                                    <TableCell class="py-2 px-2">{{ g.cantidad }}</TableCell>
-                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
-                                    <TableCell class="py-2 px-2">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs w-8">{{ g.porcentaje }}%</span>
-                                            <div class="h-1.5 w-24 bg-rose-900/50 rounded-full overflow-hidden">
-                                                <div class="h-full bg-rose-400" :style="{ width: g.porcentaje + '%' }"></div>
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                                <TableRow v-if="!props.tablaGastosAgrupados?.length">
-                                    <TableCell colspan="4" class="text-center py-4 text-muted-foreground">No hay datos agrupados</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-
-                        <!-- Tabla Agrupada por SUCURSAL (Casino) -->
-                        <Table v-else class="min-w-[520px] w-full text-sm">
-                            <thead class="bg-rose-900/20">
-                                <tr class="border-b border-rose-500/30">
-                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
-                                    <th class="py-3 px-2 text-rose-100">Total Gastos</th>
-                                </tr>
-                            </thead>
-                            <TableBody>
-                                <TableRow v-for="g in gastosPorTipo" :key="g.sucursal" class="border-b border-rose-500/10 hover:bg-rose-500/5">
-                                    <TableCell class="py-2 px-2 font-medium">{{ g.sucursal }}</TableCell>
-                                    <TableCell class="py-2 px-2 font-bold">{{ money(g.total) }}</TableCell>
-                                </TableRow>
-                                <TableRow v-if="!gastosPorTipo.length">
-                                    <TableCell colspan="2" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-
                     </div>
                 </div>
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\{
     MaquinasController,
     LecturasController,
     GastosController,
+    RetencionesController,
     CierresController,
     ProveedoresController,
     UserController, DashboardController, ReportesController
@@ -26,6 +27,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/gastos', [GastosController::class, 'store'])->name('gastos.store');
     Route::put('/gastos/{gasto}', [GastosController::class, 'update'])->name('gastos.update');
     Route::delete('/gastos/{gasto}', [GastosController::class, 'destroy'])->name('gastos.destroy');
+
+    Route::get('/retenciones', [RetencionesController::class, 'index'])->name('retenciones.index');
+    Route::post('/retenciones', [RetencionesController::class, 'store'])->name('retenciones.store');
+    Route::put('/retenciones/{retencion}', [RetencionesController::class, 'update'])->name('retenciones.update');
+    Route::delete('/retenciones/{retencion}', [RetencionesController::class, 'destroy'])->name('retenciones.destroy');
 
     Route::get('/cierres', [CierresController::class, 'index'])->name('cierres.index');
     

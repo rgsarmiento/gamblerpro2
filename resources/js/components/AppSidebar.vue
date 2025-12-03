@@ -49,6 +49,11 @@ const mainNavItems: NavItem[] = [
                 title: 'Gastos',
                 href: '/gastos',
                 icon: Receipt,
+            },
+            {
+                title: 'Retenciones',
+                href: '/retenciones',
+                icon: Receipt,
             },            
         ]
     },
