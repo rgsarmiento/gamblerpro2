@@ -9,6 +9,7 @@ use App\Http\Controllers\{
     RetencionesController,
     CierresController,
     ProveedoresController,
+    SucursalesController,
     UserController, DashboardController, ReportesController
 };
 
@@ -32,6 +33,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/retenciones', [RetencionesController::class, 'store'])->name('retenciones.store');
     Route::put('/retenciones/{retencion}', [RetencionesController::class, 'update'])->name('retenciones.update');
     Route::delete('/retenciones/{retencion}', [RetencionesController::class, 'destroy'])->name('retenciones.destroy');
+
+    Route::get('/sucursales', [SucursalesController::class, 'index'])->name('sucursales.index')->middleware('role:master_admin');
+    Route::post('/sucursales', [SucursalesController::class, 'store'])->name('sucursales.store')->middleware('role:master_admin');
+    Route::put('/sucursales/{sucursal}', [SucursalesController::class, 'update'])->name('sucursales.update')->middleware('role:master_admin');
+    Route::delete('/sucursales/{sucursal}', [SucursalesController::class, 'destroy'])->name('sucursales.destroy')->middleware('role:master_admin');
 
     Route::get('/cierres', [CierresController::class, 'index'])->name('cierres.index');
     

@@ -438,7 +438,7 @@ const formatNumber = (value) => {
                 <div class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
                     
                     <div class="flex justify-between items-center mb-3">
-                        <h2 class="font-semibold text-rose-200">
+                        <h2 class="font-semibold">
                             {{ form.mode === 'sucursal' ? 'Gastos Agrupados por Tipo' : 'Gastos por Sucursal' }}
                         </h2>
                         <button @click="form.mode === 'sucursal' ? exportGastosAgrupados() : exportGastos()" 
@@ -451,10 +451,10 @@ const formatNumber = (value) => {
                         <Table v-if="form.mode === 'sucursal'" class="min-w-[520px] w-full text-sm">
                             <thead class="bg-rose-900/20">
                                 <tr class="text-left border-b border-rose-500/30">
-                                    <th class="py-3 px-2 text-rose-100">Tipo de Gasto</th>
-                                    <th class="py-3 px-2 text-rose-100">Cantidad</th>
-                                    <th class="py-3 px-2 text-rose-100">Total</th>
-                                    <th class="py-3 px-2 text-rose-100">%</th>
+                                    <th class="py-3 px-2">Tipo de Gasto</th>
+                                    <th class="py-3 px-2 ">Cantidad</th>
+                                    <th class="py-3 px-2 ">Total</th>
+                                    <th class="py-3 px-2 ">%</th>
                                 </tr>
                             </thead>
                             <TableBody>
@@ -480,9 +480,9 @@ const formatNumber = (value) => {
                         <!-- Tabla Agrupada por SUCURSAL (Casino) -->
                         <Table v-else class="min-w-[520px] w-full text-sm">
                             <thead class="bg-rose-900/20">
-                                <tr class="border-b border-rose-500/30">
-                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
-                                    <th class="py-3 px-2 text-rose-100">Total Gastos</th>
+                                <tr class="text-left border-b border-rose-500/30">
+                                    <th class="py-3 px-2 ">Sucursal</th>
+                                    <th class="py-3 px-2 ">Total Gastos</th>
                                 </tr>
                             </thead>
                             <TableBody>

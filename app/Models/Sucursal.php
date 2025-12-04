@@ -12,8 +12,18 @@ class Sucursal extends Model
         'casino_id',
         'nombre',
         'telefono',
-        'direccion'
+        'direccion',
+        'base_monedas',
+        'base_billetes',
+        'activo',
     ];
+
+    protected $casts = [
+        'base_monedas' => 'decimal:2',
+        'base_billetes' => 'decimal:2',
+        'activo' => 'boolean',
+    ];
+    
     public function casino()
     {
         return $this->belongsTo(Casino::class);

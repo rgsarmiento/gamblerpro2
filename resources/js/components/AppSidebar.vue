@@ -63,6 +63,12 @@ const mainNavItems: NavItem[] = [
         isGroup: true,
         items: [
             {
+                title: 'Sucursales',
+                href: '/sucursales',
+                icon: Building2,
+                roles: ['master_admin'],
+            },
+            {
                 title: 'Máquinas',
                 href: '/maquinas',
                 icon: Monitor,
