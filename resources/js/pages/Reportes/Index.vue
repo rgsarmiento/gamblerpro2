@@ -31,6 +31,8 @@ const props = defineProps<{
     resumenGlobal: { neto_final: number, neto_inicial: number, creditos: number, recaudo: number, gastos: number, saldo: number },
     gastosPorTipo: Row[], // Ahora contiene gastos detallados en modo sucursal
     tablaGastosAgrupados?: Row[], // Nueva prop para gastos agrupados
+    tablaRetenciones?: { total_retenciones: number, cantidad_retenciones: number } | null,
+    tablaBases?: { base_monedas: number, base_billetes: number, total_base: number, sucursal_nombre: string } | null,
     tablaPrincipal: Row[],
     tablaSecundaria: Row[],
     chart: { labels: string[], data: number[], title: string },
@@ -215,6 +217,27 @@ const exportTablaSecundaria = () => {
     const h = ['Usuario', 'Neto Final', 'Neto Inicial', 'Créditos', 'Recaudo', '% Recaudado']
     const r = props.tablaSecundaria.map(x => [x.usuario, x.neto_final, x.neto_inicial, x.creditos, x.recaudo, x.porcentaje])
     exportar(h, r, 'por_usuario.xlsx')
+}
+
+const exportRetenciones = () => {
+    if (!props.tablaRetenciones) return
+    const h = ['Concepto', 'Valor']
+    const r = [
+        ['Cantidad de Retenciones', props.tablaRetenciones.cantidad_retenciones],
+        ['Total Retenciones', props.tablaRetenciones.total_retenciones]
+    ]
+    exportar(h, r, 'retenciones.xlsx')
+}
+
+const exportBases = () => {
+    if (!props.tablaBases) return
+    const h = ['Concepto', 'Valor']
+    const r = [
+        ['Base Monedas', props.tablaBases.base_monedas],
+        ['Base Billetes', props.tablaBases.base_billetes],
+        ['Total Base', props.tablaBases.total_base]
+    ]
+    exportar(h, r, 'bases_sucursal.xlsx')
 }
 
 
@@ -498,6 +521,58 @@ const formatNumber = (value) => {
 
                     </div>
                 </div>
+
+            <!-- Retenciones (Solo en modo sucursal) -->
+            <div v-if="form.mode === 'sucursal' && props.tablaRetenciones" 
+                class="p-4 rounded-lg shadow border bg-gradient-to-br from-purple-600/30 to-purple-900/20 border-purple-500/40">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold text-purple-200">Retenciones del Período</h2>
+                    <button @click="exportRetenciones" 
+                        class="text-sm px-3 py-1 rounded border border-purple-500/50 hover:bg-purple-500/20">Exportar</button>
+                </div>
+                <div class="bg-card/50 rounded-lg shadow border border-purple-500/20 overflow-hidden">
+                    <Table class="min-w-[400px] w-full text-sm">
+                        <TableBody>
+                            <TableRow class="border-b border-purple-500/10 hover:bg-purple-500/5">
+                                <TableCell class="py-3 px-4 font-medium text-purple-100">Cantidad de Retenciones</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ props.tablaRetenciones.cantidad_retenciones }}</TableCell>
+                            </TableRow>
+                            <TableRow class="border-b border-purple-500/10 hover:bg-purple-500/5">
+                                <TableCell class="py-3 px-4 font-medium text-purple-100">Total Retenciones</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-purple-300">{{ money(props.tablaRetenciones.total_retenciones) }}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+
+            <!-- Bases de Monedas y Billetes (Solo en modo sucursal) -->
+            <div v-if="form.mode === 'sucursal' && props.tablaBases" 
+                class="p-4 rounded-lg shadow border bg-gradient-to-br from-cyan-600/30 to-cyan-900/20 border-cyan-500/40">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-semibold text-cyan-200">Base de Monedas y Billetes - {{ props.tablaBases.sucursal_nombre }}</h2>
+                    <button @click="exportBases" 
+                        class="text-sm px-3 py-1 rounded border border-cyan-500/50 hover:bg-cyan-500/20">Exportar</button>
+                </div>
+                <div class="bg-card/50 rounded-lg shadow border border-cyan-500/20 overflow-hidden">
+                    <Table class="min-w-[400px] w-full text-sm">
+                        <TableBody>
+                            <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
+                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Base Monedas</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ money(props.tablaBases.base_monedas) }}</TableCell>
+                            </TableRow>
+                            <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
+                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Base Billetes</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ money(props.tablaBases.base_billetes) }}</TableCell>
+                            </TableRow>
+                            <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
+                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Total Base</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-cyan-300">{{ money(props.tablaBases.total_base) }}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
 
             <!-- Tabla principal (según modo) -->
             <div class="p-4 rounded-lg shadow border 

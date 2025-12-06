@@ -277,6 +277,35 @@ class ReportesController extends Controller
 
                 $bloques['tablaGastosAgrupados'] = $gastosAgrupados;
 
+                // 3. Retenciones - Total y cantidad para el período
+                $retencionesData = \App\Models\Retencion::query()
+                    ->whereBetween('fecha', [$inicio, $fin])
+                    ->when($sucursalId, fn($q) => $q->where('sucursal_id', $sucursalId))
+                    ->selectRaw('
+                        COUNT(*) as cantidad_retenciones,
+                        COALESCE(SUM(valor_retencion), 0) as total_retenciones
+                    ')
+                    ->first();
+
+                $bloques['tablaRetenciones'] = [
+                    'total_retenciones' => (float)$retencionesData->total_retenciones,
+                    'cantidad_retenciones' => (int)$retencionesData->cantidad_retenciones,
+                ];
+
+                // 4. Bases de monedas y billetes de la sucursal
+                $sucursalData = null;
+                if ($sucursalId) {
+                    $sucursalData = Sucursal::select('nombre', 'base_monedas', 'base_billetes')
+                        ->find($sucursalId);
+                }
+
+                $bloques['tablaBases'] = $sucursalData ? [
+                    'sucursal_nombre' => $sucursalData->nombre,
+                    'base_monedas' => (float)($sucursalData->base_monedas ?? 0),
+                    'base_billetes' => (float)($sucursalData->base_billetes ?? 0),
+                    'total_base' => (float)(($sucursalData->base_monedas ?? 0) + ($sucursalData->base_billetes ?? 0)),
+                ] : null;
+
                 // (maquina, entrada, salida, jackpots, neto_final, neto_inicial, creditos, recaudo)
                 $porMaquina = (clone $lecturasBase)
                     ->selectRaw("
@@ -408,6 +437,8 @@ class ReportesController extends Controller
             'tablaPrincipal'   => $bloques['tablaPrincipal'] ?? [],
             'tablaSecundaria'  => $bloques['tablaSecundaria'] ?? [],            
             'tablaGastosAgrupados'  => $bloques['tablaGastosAgrupados'] ?? [],
+            'tablaRetenciones' => $bloques['tablaRetenciones'] ?? null,
+            'tablaBases'       => $bloques['tablaBases'] ?? null,
             'chart'            => $chart,
 
             'casinos'          => $casinos,
