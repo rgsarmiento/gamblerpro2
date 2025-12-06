@@ -352,12 +352,12 @@ const chartOptions = {
           </div>
         </div>
 
-        <div class="p-4 bg-card rounded shadow border md:col-span-2 h-[450px] flex flex-col overflow-x-auto">
+        <!-- <div class="p-4 bg-card rounded shadow border md:col-span-2 h-[450px] flex flex-col overflow-x-auto">
           <p class="font-semibold mb-2">🏢 Recaudo por sucursal</p>
           <div class="flex-1 relative min-w-[700px]">
             <Bar :data="sucursalChart" :options="sucursalOptions" class="!w-full !h-full" />
           </div>
-        </div>
+        </div> -->
 
       </div>
     </div>
