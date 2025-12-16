@@ -249,9 +249,9 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-const formatNumber = (value) => {
+const formatNumber = (value: number | string) => {
     // 1. Aseguramos que el valor sea numérico
-    const numberValue = parseFloat(value);
+    const numberValue = parseFloat(value.toString());
 
     // 2. Si no es un número válido, devolvemos 0 o lo que prefieras
     if (isNaN(numberValue)) {
@@ -457,8 +457,8 @@ const formatNumber = (value) => {
                 </div>
             </div>
 
-            <!-- 2. GASTOS AGRUPADOS (En modo sucursal o casino) -->
-                <div class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
+            <!-- 2. GASTOS AGRUPADOS (Solo en modo all_casinos, casino o sucursal) -->
+                <div v-if="form.mode !== 'maquina'" class="p-4 rounded-lg shadow border bg-gradient-to-br from-rose-600/30 to-rose-900/20 border-rose-500/40">
                     
                     <div class="flex justify-between items-center mb-3">
                         <h2 class="font-semibold">

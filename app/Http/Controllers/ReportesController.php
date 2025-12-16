@@ -43,17 +43,17 @@ class ReportesController extends Controller
         $sucursalId = $req->integer('sucursal_id') ?: null;
         $maquinaId  = $req->integer('maquina_id') ?: null;
 
-        if ($mode !== 'casino') {
-            $casinoId = null;
-        }
-
-        if ($mode !== 'sucursal') {
-            $sucursalId = null;
-        }
-
-        if ($mode !== 'maquina') {
-            $maquinaId = null;
-        }
+        // ❌ COMENTADO: Esta lógica reseteaba los filtros incorrectamente
+        // El modo solo debe determinar QUÉ se muestra, no QUÉ filtros están disponibles
+        // if ($mode !== 'casino') {
+        //     $casinoId = null;
+        // }
+        // if ($mode !== 'sucursal') {
+        //     $sucursalId = null;
+        // }
+        // if ($mode !== 'maquina') {
+        //     $maquinaId = null;
+        // }
 
 
         // Reglas por rol
