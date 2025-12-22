@@ -7,6 +7,7 @@ use App\Models\Sucursal;
 use App\Models\Maquina;
 use App\Models\LecturaMaquina;
 use App\Models\Gasto;
+use App\Models\ConfiguracionIva;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -208,35 +209,276 @@ class ReportesController extends Controller
                 break;
 
             case 'casino':
-                // (sucursal, recaudo) - SIMPLIFICADO
-                $porSucursal = (clone $lecturasBase)
-                    ->selectRaw('sucursales.id as sucursal_id, sucursales.nombre AS sucursal,
-                        SUM(total_recaudo)  AS recaudo')
-                    ->join('sucursales', 'sucursales.id', '=', 'lecturas_maquinas.sucursal_id')
-                    ->groupBy('sucursales.id', 'sucursales.nombre')
-                    ->orderByDesc('recaudo')
+                // =======================================================
+                // 🎰 REPORTE PERSONALIZADO DE CASINO (RESUMEN RECAUDO)
+                // =======================================================
+
+                // 1. Obtener Configuración de IVA para el año
+                $anio = $fin->year;
+                $configIva = ConfiguracionIva::where('anio', $anio)->first();
+                $valorUvt = $configIva ? $configIva->valor_uvt : 0;
+                $cantidadUvt = $configIva ? $configIva->cantidad_uvt : 0;
+                $porcentajeIva = $configIva ? $configIva->porcentaje_iva : 0;
+
+                // 2. Obtener Sucursales del Casino (o todas si es master_admin y no filtró)
+                // Si el usuario es casino_admin ya tiene el filtro por rol. Si es master y seleccionó casino, también.
+                // Si no hay casino_id, se muestran todas las sucursales agrupadas?
+                // El reporte pide "por cada sucursal del casino". Asumiremos que hay un casino seleccionado o iteramos todas las sucursales filtradas.
+                
+                $sucursalesQuery = Sucursal::query();
+                if ($casinoId) {
+                    $sucursalesQuery->where('casino_id', $casinoId);
+                }
+                $sucursalesDb = $sucursalesQuery->get();
+
+                // 3. Pre-calcular datos por sucursal
+                // Necesitamos: Cantidad Maquinas, Recaudo (Venta+IVA), Gastos (Desglosados)
+                
+                // A. Maquinas por sucursal (Total activo)
+                $maquinasPorSucursal = Maquina::select('sucursal_id', DB::raw('count(*) as total'))
+                    ->whereIn('sucursal_id', $sucursalesDb->pluck('id'))
+                    ->groupBy('sucursal_id')
+                    ->pluck('total', 'sucursal_id');
+
+                // B. Lecturas (Recaudo)
+                $recaudoPorSucursal = LecturaMaquina::query()
+                     ->whereIn('sucursal_id', $sucursalesDb->pluck('id'))
+                     ->where('confirmado', 1)
+                     ->whereBetween('fecha', [$inicio, $fin])
+                     ->select('sucursal_id', DB::raw('SUM(total_recaudo) as recaudo'))
+                     ->groupBy('sucursal_id')
+                     ->pluck('recaudo', 'sucursal_id');
+
+                // C. Gastos Agrupados (Excluyendo 7 y 10)
+                $gastosOperativos = Gasto::query()
+                    ->whereIn('sucursal_id', $sucursalesDb->pluck('id'))
+                    ->whereBetween('fecha', [$inicio, $fin])
+                    ->whereNotIn('tipo_gasto_id', [7, 10]) // 7=Consignaciones, 10=QR
+                    ->select('sucursal_id', 'tipo_gasto_id', DB::raw('SUM(valor) as total'))
+                    ->with('tipo')
+                    ->groupBy('sucursal_id', 'tipo_gasto_id')
+                    ->get();
+                
+                // D. Consignaciones y QR
+                $gastosEspeciales = Gasto::query()
+                    ->whereIn('sucursal_id', $sucursalesDb->pluck('id'))
+                    ->whereBetween('fecha', [$inicio, $fin])
+                    ->whereIn('tipo_gasto_id', [7, 10])
+                    ->select('sucursal_id', 'tipo_gasto_id', DB::raw('SUM(valor) as total'))
+                    ->groupBy('sucursal_id', 'tipo_gasto_id')
                     ->get();
 
-                // Calcular gastos por sucursal y agregarlos
-                $gastosPorSucursal = (clone $gastosBase)
-                    ->selectRaw('sucursal_id, SUM(valor) as total_gastos')
-                    ->groupBy('sucursal_id')
-                    ->pluck('total_gastos', 'sucursal_id');
+                // Estructura de columnas (Sucursales + Total)
+                $cols = $sucursalesDb->map(function($s){ return ['id' => $s->id, 'nombre' => $s->nombre]; });
+                // Vamos a construir un array estructurado para el frontend
 
-                $porSucursal->transform(function ($item) use ($gastosPorSucursal) {
-                    $gastos = $gastosPorSucursal[$item->sucursal_id] ?? 0;
-                    $item->gastos = $gastos;
-                    $item->total_neto = $item->recaudo - $gastos;
-                    return $item;
+                $dataReporte = [
+                    'config_iva' => $configIva,
+                    'sucursales' => $cols, // Headers
+                    'maquinas' => [],
+                    'financiero' => [], // Venta Neta, IVA, Venta+IVA
+                    'gastos_detalla' => [],
+                    'total_gastos' => [],
+                    'especiales' => [], // Consignaciones, QR
+                    'saldos_finales' => [], // Saldo, %
+                ];
+
+                // --- FILA MAQUINAS ---
+                $rowMaquinas = [];
+                $totalMaquinas = 0;
+                foreach($cols as $s) {
+                    $cant = $maquinasPorSucursal[$s['id']] ?? 0;
+                    $rowMaquinas[$s['id']] = $cant;
+                    $totalMaquinas += $cant;
+                }
+                $dataReporte['maquinas'] = ['values' => $rowMaquinas, 'total' => $totalMaquinas];
+
+                // --- BLOQUE FINANCIERO ---
+                // Calculos:
+                // Base Impuesto Unitario = UVT_VAL * UVT_QTY (Si config existe, sino 0)
+                // IVA Unitario = Base * (Porcentaje / 100)
+                // IVA Total Sucursal = IVA Unitario * Cantidad Maquinas Sucursal
+                $baseImpuesto = $valorUvt * $cantidadUvt;
+                $ivaUnitario = $baseImpuesto * ($porcentajeIva / 100);
+
+                $rowVentaMasIva = []; // Recaudo Total
+                $rowIva = [];
+                $rowVentaNeta = []; 
+                
+                $sumVentaMasIva = 0;
+                $sumIva = 0;
+                $sumVentaNeta = 0;
+
+                foreach($cols as $s) {
+                    $recaudo = $recaudoPorSucursal[$s['id']] ?? 0; // Venta + IVA
+                    $maquinas = $maquinasPorSucursal[$s['id']] ?? 0;
+                    
+                    // Calculo IVA fijo por máquina (según requerimiento)
+                    // "IVA se calcula con el valor de la uvt ... multiplicado por la cantidad de maquinas"
+                    // NOTA: El requerimiento dice: "valor de la uvt multiplicado por la cantidad (de UVTs?)... y a ese total base calculamos porcentaje".
+                    // Y luego: "IVA se calcula... num maquina".
+                    // Asumiremos: IVA_Total = (IVA_Unitario * Maquinas)
+                    // Pero ojo: El IVA no puede ser mayor al recaudo? O es un impuesto fijo? 
+                    // En los juegos de suerte y azar suele ser fijo por máquina. Asumimos fijo.
+                    
+                    $ivaTotalSucursal = $ivaUnitario * $maquinas;
+                    
+                    // Venta Neta = Recaudo - IVA
+                    $ventaNeta = $recaudo - $ivaTotalSucursal;
+
+                    $rowVentaMasIva[$s['id']] = $recaudo;
+                    $rowIva[$s['id']] = $ivaTotalSucursal;
+                    $rowVentaNeta[$s['id']] = $ventaNeta;
+
+                    $sumVentaMasIva += $recaudo;
+                    $sumIva += $ivaTotalSucursal;
+                    $sumVentaNeta += $ventaNeta;
+                }
+
+                $dataReporte['financiero'] = [
+                    'venta_neta' => ['values' => $rowVentaNeta, 'total' => $sumVentaNeta],
+                    'iva' => ['values' => $rowIva, 'total' => $sumIva],
+                    'venta_mas_iva' => ['values' => $rowVentaMasIva, 'total' => $sumVentaMasIva],
+                ];
+
+                // --- BLOQUE GASTOS (Dinámico) ---
+                // Obtener todos los tipos de gasto que aparecen en estas sucursales (excl 7 y 10)
+                $tiposGastoIds = $gastosOperativos->pluck('tipo_gasto_id')->unique();
+                $nombresGastos = \App\Models\TipoGasto::whereIn('id', $tiposGastoIds)->pluck('nombre', 'id');
+
+                $rowsGastos = [];
+                $totalGastosOperativosPorSucursal = []; // Acumulador vertical
+                $granTotalGastosOperativos = 0; // Acumulador total horizontal
+
+                // Inicializar acumuladores
+                foreach($cols as $s) $totalGastosOperativosPorSucursal[$s['id']] = 0;
+
+                foreach($nombresGastos as $idTipo => $nombreTipo) {
+                    $row = [];
+                    $totalRow = 0;
+                    foreach($cols as $s) {
+                        // Buscar el gasto de este tipo en esta sucursal
+                        $val = $gastosOperativos->where('sucursal_id', $s['id'])->where('tipo_gasto_id', $idTipo)->sum('total');
+                        $row[$s['id']] = $val;
+                        $totalRow += $val;
+                        
+                        $totalGastosOperativosPorSucursal[$s['id']] += $val;
+                    }
+                    $rowsGastos[] = ['nombre' => $nombreTipo, 'values' => $row, 'total' => $totalRow];
+                    $granTotalGastosOperativos += $totalRow;
+                }
+
+                $dataReporte['gastos_detalla'] = $rowsGastos;
+                $dataReporte['total_gastos'] = ['values' => $totalGastosOperativosPorSucursal, 'total' => $granTotalGastosOperativos];
+
+                // --- ESPECIALES (Consignaciones y QR) ---
+                // ID 7
+                $rowConsignaciones = [];
+                $totalConsignaciones = 0;
+                foreach($cols as $s) {
+                    $val = $gastosEspeciales->where('sucursal_id', $s['id'])->where('tipo_gasto_id', 7)->sum('total');
+                    $rowConsignaciones[$s['id']] = $val;
+                    $totalConsignaciones += $val;
+                }
+                
+                // ID 10
+                $rowQr = [];
+                $totalQr = 0;
+                foreach($cols as $s) {
+                    $val = $gastosEspeciales->where('sucursal_id', $s['id'])->where('tipo_gasto_id', 10)->sum('total');
+                    $rowQr[$s['id']] = $val;
+                    $totalQr += $val;
+                }
+
+                $dataReporte['especiales'] = [
+                    'consignaciones' => ['values' => $rowConsignaciones, 'total' => $totalConsignaciones],
+                    'qr' => ['values' => $rowQr, 'total' => $totalQr],
+                ];
+
+                // --- SALDOS ---
+                // Saldo = Venta+IVA - (Total Gastos Operativos + Consignaciones + QR)
+                // "saldo q seia el total de venta+iva, menos el total de gatos - CONSIGNACIONES - CODIGOS QR"
+                // Interpretación: Recaudo - (GastosOp + Cons + QR).
+                
+                $rowSaldo = [];
+                $totalSaldo = 0;
+                
+                $rowPorcentaje1 = []; // Gastos / Recaudo
+                $rowPorcentaje2 = []; // 100 - %1
+
+                // Totales para % globales
+                // $sumVentaMasIva
+                // Total Egresos Global = $granTotalGastosOperativos + $totalConsignaciones + $totalQr
+                // Requerimiento %: "total gastos * 100 / venta + iva". (Refiriéndose a todos los gastos? O solo Operativos?)
+                // En imagen: 21.2M Expenses / 40.3M Sale = 52.5%. (21.2M es Total Gastos Operativos).
+                // Image row "TOTAL GASTOS" matches 21.2M.
+                // Consignaciones (12M) are NOT inside "TOTAL GASTOS".
+                // So the percentage is (Total_Gastos_Operativos / Recaudo). confirmamos con la imagen.
+                
+                foreach($cols as $s) {
+                    $ingreso = $rowVentaMasIva[$s['id']];
+                    $egresoOp = $totalGastosOperativosPorSucursal[$s['id']];
+                    $cons = $rowConsignaciones[$s['id']];
+                    $qr = $rowQr[$s['id']];
+
+                    $saldo = $ingreso - $egresoOp - $cons - $qr;
+                    
+                    $rowSaldo[$s['id']] = $saldo;
+                    $totalSaldo += $saldo;
+
+                    // Porcentajes
+                    $pct = 0;
+                    if ($ingreso > 0) {
+                        $pct = ($egresoOp * 100) / $ingreso;
+                    }
+                    $rowPorcentaje1[$s['id']] = $pct;
+                    $rowPorcentaje2[$s['id']] = 100 - $pct;
+                }
+
+                // Totales %
+                $totalPct1 = 0;
+                if ($sumVentaMasIva > 0) {
+                    $totalPct1 = ($granTotalGastosOperativos * 100) / $sumVentaMasIva;
+                }
+
+                $dataReporte['saldos_finales'] = [
+                    'saldo' => ['values' => $rowSaldo, 'total' => $totalSaldo],
+                    'porcentaje_gastos' => ['values' => $rowPorcentaje1, 'total' => $totalPct1],
+                    'porcentaje_utilidad' => ['values' => $rowPorcentaje2, 'total' => 100 - $totalPct1],
+                ];
+
+                // Asignar al prop especial
+                $bloques['reporteCasino'] = $dataReporte;
+                
+                // --- RESTAURAR VISUALIZACION ANTERIOR (TABLA RESUMEN + CREAR GRAFICO) ---
+                // Reutilizamos la lógica anterior para llenar tablaPrincipal y chart
+                // (sucursal, recaudo) - SIMPLIFICADO
+                // OJO: Ya tenemos $recaudoPorSucursal (Venta+IVA) y $totalGastosOperativosPorSucursal (Solo operativos)
+                // En la versión anterior:
+                // $porSucursal query directo...
+                // Recalculemos rápido para ser consistentes con la tabla nueva
+                
+                $porSucursal = $sucursalesDb->map(function($s) use ($rowVentaMasIva, $totalGastosOperativosPorSucursal, $rowConsignaciones, $rowQr) {
+                    $recaudo = $rowVentaMasIva[$s->id] ?? 0;
+                    $gastos = ($totalGastosOperativosPorSucursal[$s->id] ?? 0) + ($rowConsignaciones[$s->id] ?? 0) + ($rowQr[$s->id] ?? 0);
+                    $neto = $recaudo - $gastos;
+                    
+                    return (object)[
+                        'sucursal' => $s->nombre,
+                        'recaudo' => $recaudo,
+                        'gastos' => $gastos,
+                        'total_neto' => $neto
+                    ];
                 });
-
+                
                 $bloques['tablaPrincipal'] = $porSucursal;
 
                 $chart = [
                     'labels' => $porSucursal->pluck('sucursal'),
-                    'data'   => $porSucursal->pluck('recaudo'),
+                    'data'   => $porSucursal->pluck('recaudo'), // Graficamos recaudo o neto? Antes era recaudo.
                     'title'  => 'Recaudo por sucursal',
                 ];
+                
                 break;
 
             case 'sucursal':
@@ -437,6 +679,7 @@ class ReportesController extends Controller
             'tablaPrincipal'   => $bloques['tablaPrincipal'] ?? [],
             'tablaSecundaria'  => $bloques['tablaSecundaria'] ?? [],            
             'tablaGastosAgrupados'  => $bloques['tablaGastosAgrupados'] ?? [],
+            'reporteCasino'    => $bloques['reporteCasino'] ?? null,
             'tablaRetenciones' => $bloques['tablaRetenciones'] ?? null,
             'tablaBases'       => $bloques['tablaBases'] ?? null,
             'chart'            => $chart,
