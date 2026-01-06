@@ -81,6 +81,9 @@ const maquinaSeleccionada = computed(() =>
 )
 
 const actualizar = () => {
+    // 🧹 Limpiar máquina cuando cambia casino, sucursal o modo
+    form.value.maquina_id = ''
+
     if (form.value.range !== 'custom') {
         router.get('/reportes', form.value, { preserveState: true, replace: true })
     } else {
@@ -169,11 +172,12 @@ const exportGastos = () => {
 
     // 🟢 Modo detallado: sucursal / maquina
     else {
-        headings = ['Fecha', 'Sucursal', 'Tipo', 'Descripción', 'Total']
+        headings = ['Fecha', 'Sucursal', 'Tipo', 'Proveedor', 'Descripción', 'Total']
         rows = props.gastosPorTipo.map(g => [
             g.fecha,
             g.sucursal,
             g.tipo,
+            g.proveedor,
             g.descripcion,
             g.total
         ])
@@ -642,16 +646,16 @@ const exportReporteCasino = () => {
                     <button @click="exportRetenciones" 
                         class="text-sm px-3 py-1 rounded border border-purple-500/50 hover:bg-purple-500/20">Exportar</button>
                 </div>
-                <div class="bg-card/50 rounded-lg shadow border border-purple-500/20 overflow-hidden">
+                <div class="bg-card rounded-lg shadow border border-purple-500/20 overflow-hidden">
                     <Table class="min-w-[400px] w-full text-sm">
                         <TableBody>
                             <TableRow class="border-b border-purple-500/10 hover:bg-purple-500/5">
-                                <TableCell class="py-3 px-4 font-medium text-purple-100">Cantidad de Retenciones</TableCell>
+                                <TableCell class="py-3 px-4 font-medium text-foreground">Cantidad de Retenciones</TableCell>
                                 <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ props.tablaRetenciones.cantidad_retenciones }}</TableCell>
                             </TableRow>
                             <TableRow class="border-b border-purple-500/10 hover:bg-purple-500/5">
-                                <TableCell class="py-3 px-4 font-medium text-purple-100">Total Retenciones</TableCell>
-                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-purple-300">{{ money(props.tablaRetenciones.total_retenciones) }}</TableCell>
+                                <TableCell class="py-3 px-4 font-medium text-foreground">Total Retenciones</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-purple-600 dark:text-purple-300">{{ money(props.tablaRetenciones.total_retenciones) }}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
@@ -666,20 +670,20 @@ const exportReporteCasino = () => {
                     <button @click="exportBases" 
                         class="text-sm px-3 py-1 rounded border border-cyan-500/50 hover:bg-cyan-500/20">Exportar</button>
                 </div>
-                <div class="bg-card/50 rounded-lg shadow border border-cyan-500/20 overflow-hidden">
+                <div class="bg-card rounded-lg shadow border border-cyan-500/20 overflow-hidden">
                     <Table class="min-w-[400px] w-full text-sm">
                         <TableBody>
                             <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
-                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Base Monedas</TableCell>
+                                <TableCell class="py-3 px-4 font-medium text-foreground">Base Monedas</TableCell>
                                 <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ money(props.tablaBases.base_monedas) }}</TableCell>
                             </TableRow>
                             <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
-                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Base Billetes</TableCell>
+                                <TableCell class="py-3 px-4 font-medium text-foreground">Base Billetes</TableCell>
                                 <TableCell class="py-3 px-4 text-right font-bold text-lg">{{ money(props.tablaBases.base_billetes) }}</TableCell>
                             </TableRow>
                             <TableRow class="border-b border-cyan-500/10 hover:bg-cyan-500/5">
-                                <TableCell class="py-3 px-4 font-medium text-cyan-100">Total Base</TableCell>
-                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-cyan-300">{{ money(props.tablaBases.total_base) }}</TableCell>
+                                <TableCell class="py-3 px-4 font-medium text-foreground">Total Base</TableCell>
+                                <TableCell class="py-3 px-4 text-right font-bold text-lg text-cyan-600 dark:text-cyan-300">{{ money(props.tablaBases.total_base) }}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
@@ -1005,11 +1009,12 @@ const exportReporteCasino = () => {
                         <Table class="min-w-[520px] w-full text-sm">
                             <thead class="bg-rose-900/20">
                                 <tr class="text-left border-b border-rose-500/30">
-                                    <th class="py-3 px-2 text-rose-100">Fecha</th>
-                                    <th class="py-3 px-2 text-rose-100">Sucursal</th>
-                                    <th class="py-3 px-2 text-rose-100">Tipo</th>
-                                    <th class="py-3 px-2 text-rose-100">Descripción</th>
-                                    <th class="py-3 px-2 text-rose-100">Total</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Fecha</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Sucursal</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Tipo</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Proveedor</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Descripción</th>
+                                    <th class="py-3 px-2 text-rose-800 dark:text-rose-100">Total</th>
                                 </tr>
                             </thead>
 
@@ -1018,15 +1023,18 @@ const exportReporteCasino = () => {
                                     <TableCell class="py-2 px-2">{{ g.fecha }}</TableCell>
                                     <TableCell class="py-2 px-2">{{ g.sucursal }}</TableCell>
                                     <TableCell class="py-2 px-2">
-                                        <span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 text-xs border border-rose-500/30">
+                                        <span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-800 dark:text-rose-200 text-xs border border-rose-500/30 font-medium">
                                             {{ g.tipo }}
                                         </span>
+                                    </TableCell>
+                                    <TableCell class="py-2 px-2">
+                                        <span class="text-emerald-700 dark:text-emerald-400 font-semibold">{{ g.proveedor || 'N/A' }}</span>
                                     </TableCell>
                                     <TableCell class="py-2 px-2 text-muted-foreground italic">{{ g.descripcion }}</TableCell>
                                     <TableCell class="py-2 px-2 font-medium">{{ formatCurrency(g.total) }}</TableCell>
                                 </TableRow>
                                 <TableRow v-if="!gastosPorTipo.length">
-                                    <TableCell colspan="5" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
+                                    <TableCell colspan="6" class="text-center py-4 text-muted-foreground">No hay gastos registrados</TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>

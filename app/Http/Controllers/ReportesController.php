@@ -147,11 +147,13 @@ class ReportesController extends Controller
                 gastos.fecha,
                 sucursales.nombre AS sucursal,
                 tipos_gasto.nombre AS tipo,
+                proveedores.nombre AS proveedor,
                 gastos.descripcion,
                 gastos.valor AS total
             ")
                     ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
                     ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
+                    ->leftJoin('proveedores', 'gastos.proveedor_id', '=', 'proveedores.id')
                     ->orderByDesc('gastos.fecha')
                     ->orderBy('sucursales.nombre')
                     ->orderBy('tipos_gasto.nombre')
@@ -488,11 +490,13 @@ class ReportesController extends Controller
                         gastos.fecha,
                         sucursales.nombre AS sucursal,
                         tipos_gasto.nombre AS tipo,
+                        proveedores.nombre AS proveedor,
                         gastos.descripcion,
                         gastos.valor AS total
                     ")
                     ->join('sucursales', 'sucursales.id', '=', 'gastos.sucursal_id')
                     ->join('tipos_gasto', 'gastos.tipo_gasto_id', '=', 'tipos_gasto.id')
+                    ->leftJoin('proveedores', 'gastos.proveedor_id', '=', 'proveedores.id')
                     ->orderByDesc('gastos.fecha')
                     ->get();
                 
