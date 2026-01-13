@@ -199,9 +199,9 @@ const deleteLectura = async (id: number) => {
     })
 }
 
-const formatNumber = (value) => {
+const formatNumber = (value: number | string): number => {
     // 1. Aseguramos que el valor sea numérico
-    const numberValue = parseFloat(value);
+    const numberValue = parseFloat(value.toString());
 
     // 2. Si no es un número válido, devolvemos 0 o lo que prefieras
     if (isNaN(numberValue)) {
@@ -213,13 +213,13 @@ const formatNumber = (value) => {
     return Number(numberValue.toFixed(2));
 };
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: number | string): string => {
     // if (typeof value !== 'number') return '';
     return new Intl.NumberFormat('es-CO', {
         style: 'currency',
         currency: 'COP',
         maximumFractionDigits: 0,
-    }).format(value);
+    }).format(Number(value));
 };
 
 
@@ -347,6 +347,42 @@ const submitEdit = () => {
 
 
 
+// 🎯 Función para manejar Enter como Tab en el formulario
+// Previene que Enter active el submit prematuramente
+const handleEnterKey = (event: KeyboardEvent) => {
+    // Solo interceptar si es la tecla Enter
+    if (event.key !== 'Enter') return;
+
+    const target = event.target as HTMLElement;
+    
+    // Si el foco está en el botón submit, permitir el comportamiento normal
+    if (target.tagName === 'BUTTON' && target.getAttribute('type') === 'submit') {
+        return; // Dejar que el submit se ejecute normalmente
+    }
+
+    // Para cualquier otro elemento (inputs, selects, etc.), prevenir submit
+    event.preventDefault();
+
+    // Obtener todos los elementos focusables del formulario
+    const form = target.closest('form');
+    if (!form) return;
+
+    const focusableElements = Array.from(
+        form.querySelectorAll(
+            'input:not([disabled]):not([readonly]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])'
+        )
+    ) as HTMLElement[];
+
+    // Encontrar el índice del elemento actual
+    const currentIndex = focusableElements.indexOf(target);
+    
+    // Si no es el último elemento, mover al siguiente
+    if (currentIndex > -1 && currentIndex < focusableElements.length - 1) {
+        focusableElements[currentIndex + 1].focus();
+    }
+};
+
+
 </script>
 
 
@@ -380,7 +416,7 @@ const submitEdit = () => {
                     form.total_recaudo = 0
                 },
             })
-                " class="space-y-4 bg-card p-4 rounded">
+                " @keydown="handleEnterKey" class="space-y-4 bg-card p-4 rounded">
 
                 <div class="grid grid-cols-4 gap-4">
                     <div>
@@ -725,7 +761,7 @@ const submitEdit = () => {
             <div class="bg-card p-6 rounded w-full max-w-lg">
                 <h2 class="text-lg font-bold mb-3">Editar lectura</h2>
                 <h3 class="text-lg font-bold mb-3">{{ editMaquinaLabel }}</h3>
-                <form @submit.prevent="submitEdit" class="space-y-3">
+                <form @submit.prevent="submitEdit" @keydown="handleEnterKey" class="space-y-3">
                     <div class="grid grid-cols-4 gap-3">
                         <div>
                             <label class="block text-sm">Neto Inicial</label>

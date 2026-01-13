@@ -231,6 +231,31 @@ const canEdit = (gastoFecha: string) => {
     return gastoFecha > props.ultimaFechaConfirmada
 }
 
+// 🎯 Función para manejar Enter como Tab en el formulario
+const handleEnterKey = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter') return;
+    const target = event.target as HTMLElement;
+    
+    if (target.tagName === 'BUTTON' && target.getAttribute('type') === 'submit') {
+        return;
+    }
+
+    event.preventDefault();
+    const form = target.closest('form');
+    if (!form) return;
+
+    const focusableElements = Array.from(
+        form.querySelectorAll(
+            'input:not([disabled]):not([readonly]), select:not([disabled]), button:not([disabled]), textarea:not([disabled])'
+        )
+    ) as HTMLElement[];
+
+    const currentIndex = focusableElements.indexOf(target);
+    if (currentIndex > -1 && currentIndex < focusableElements.length - 1) {
+        focusableElements[currentIndex + 1].focus();
+    }
+};
+
 </script>
 
 <template>
@@ -248,7 +273,7 @@ const canEdit = (gastoFecha: string) => {
                         form.descripcion = ''
                     },
                 })
-                " class="space-y-4 bg-card p-4 rounded">
+                " @keydown="handleEnterKey" class="space-y-4 bg-card p-4 rounded">
 
                 <div class="grid grid-cols-2 gap-4">
                     <div v-if="role === 'master_admin'">

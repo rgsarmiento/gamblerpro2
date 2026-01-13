@@ -48,16 +48,27 @@ const props = defineProps<{
 
 const role = computed(() => props.user.roles[0] ?? '')
 
+
+// 📅 Obtener fecha actual en formato YYYY-MM-DD
+const getFechaActual = () => {
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, '0');
+    const day = String(hoy.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // form de filtros
 const form = ref({
     mode: props.mode,
     casino_id: props.filtros.casino_id ?? '',
     sucursal_id: props.filtros.sucursal_id ?? '',
     maquina_id: props.filtros.maquina_id ?? '',
-    range: props.filtros.range ?? 'this_month',
-    start_date: props.filtros.start_date ?? '',
-    end_date: props.filtros.end_date ?? '',
+    range: props.filtros.range ?? 'custom', // 🎯 Predeterminado: custom
+    start_date: props.filtros.start_date ?? getFechaActual(), // 🎯 Fecha actual por defecto
+    end_date: props.filtros.end_date ?? getFechaActual(), // 🎯 Fecha actual por defecto
 })
+
 
 const sucursalesFiltradas = computed(() => {
     if (!form.value.casino_id) return props.sucursales
@@ -412,9 +423,9 @@ const exportReporteCasino = () => {
                         <label class="text-sm font-semibold text-slate-300">Rango de fechas</label>
                         <select v-model="form.range" @change="actualizar" class="mt-1 w-full px-3 py-2 rounded border border-slate-600 
                        bg-slate-800 text-slate-100 focus:border-indigo-400">
+                            <option value="custom">Fechas seleccionadas</option>     
                             <option value="today">Hoy</option>
-                            <option value="yesterday">Ayer</option>
-                            <option value="custom">Fechas seleccionadas</option>
+                            <option value="yesterday">Ayer</option>                            
                             <option value="last7">Últimos 7 días</option>
                             <option value="last30">Últimos 30 días</option>
                             <option value="this_month">Este mes</option>
@@ -774,21 +785,21 @@ const exportReporteCasino = () => {
                             <!-- FINANCIERO -->
                             <tr class="hover:bg-slate-700/30 text-emerald-300 font-medium"> <!-- VENTANETA -->
                                 <td class="py-2 px-4">VENTA NETA</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-xs">
                                     {{ money(props.reporteCasino.financiero.venta_neta.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 font-bold bg-slate-800/30">{{ money(props.reporteCasino.financiero.venta_neta.total) }}</td>
                             </tr>
                              <tr class="hover:bg-slate-700/30 text-amber-300 font-medium"> <!-- IVA -->
                                 <td class="py-2 px-4">IVA</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-xs">
                                     {{ money(props.reporteCasino.financiero.iva.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 font-bold bg-slate-800/30">{{ money(props.reporteCasino.financiero.iva.total) }}</td>
                             </tr>
                              <tr class="hover:bg-slate-700/30 text-white font-bold text-base bg-slate-700/20"> <!-- VENTA + IVA -->
                                 <td class="py-2 px-4">VENTA + IVA</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-xs">
                                     {{ money(props.reporteCasino.financiero.venta_mas_iva.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 font-bold bg-slate-800/50">{{ money(props.reporteCasino.financiero.venta_mas_iva.total) }}</td>
@@ -808,7 +819,7 @@ const exportReporteCasino = () => {
                             <!-- TOTAL GASTOS OPERATIVOS -->
                             <tr class="bg-rose-900/10 font-bold text-rose-300 border-t border-rose-500/30 mt-2">
                                 <td class="py-2 px-4">TOTAL GASTOS</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-sm">
                                     {{ money(props.reporteCasino.total_gastos.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 bg-rose-900/20">{{ money(props.reporteCasino.total_gastos.total) }}</td>
@@ -819,14 +830,14 @@ const exportReporteCasino = () => {
                             <!-- ESPECIALES -->
                             <tr class="hover:bg-slate-700/30 text-orange-300">
                                 <td class="py-2 px-4">CONSIGNACIONES</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-xs">
                                     {{ money(props.reporteCasino.especiales.consignaciones.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 font-bold bg-slate-800/30">{{ money(props.reporteCasino.especiales.consignaciones.total) }}</td>
                             </tr>
                             <tr class="hover:bg-slate-700/30 text-orange-300">
                                 <td class="py-2 px-4">CODIGOS QR</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-xs">
                                     {{ money(props.reporteCasino.especiales.qr.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 font-bold bg-slate-800/30">{{ money(props.reporteCasino.especiales.qr.total) }}</td>
@@ -837,7 +848,7 @@ const exportReporteCasino = () => {
                             <!-- SALDOS FINALES -->
                             <tr class="bg-indigo-900/20 font-bold text-indigo-300 text-lg border-t-2 border-indigo-500/50">
                                 <td class="py-3 px-4">SALDO</td>
-                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2">
+                                <td v-for="suc in props.reporteCasino.sucursales" :key="suc.id" class="text-right px-2 text-sm">
                                     {{ money(props.reporteCasino.saldos_finales.saldo.values[suc.id]) }}
                                 </td>
                                 <td class="text-right px-4 bg-indigo-900/30">{{ money(props.reporteCasino.saldos_finales.saldo.total) }}</td>
@@ -939,7 +950,7 @@ const exportReporteCasino = () => {
                     <table v-else-if="form.mode === 'sucursal'" class="min-w-[900px] w-full text-sm">
                         <thead class="bg-emerald-900/20">
                             <tr class="text-left border-b border-emerald-500/30">
-                                <th class="py-3 px-2 text-right">Máquina</th>
+                                <th class="py-3 px-2">Máquina</th>
                                 <th class="py-3 px-2 text-right">Entrada</th>
                                 <th class="py-3 px-2 text-right">Salida</th>
                                 <th class="py-3 px-2 text-right">Jackpots</th>

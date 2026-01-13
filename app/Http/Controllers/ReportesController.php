@@ -696,7 +696,7 @@ class ReportesController extends Controller
                 'casino_id'   => $casinoId,
                 'sucursal_id' => $sucursalId,
                 'maquina_id'  => $maquinaId,
-                'range'       => $req->get('range', 'this_month'),
+                'range'       => $req->get('range', 'custom'),
                 'start_date'  => $req->get('start_date'),
                 'end_date'    => $req->get('end_date'),
             ],
