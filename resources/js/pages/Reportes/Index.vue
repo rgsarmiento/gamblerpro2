@@ -255,6 +255,15 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
+// 💰 Nueva función: Formato de moneda SIN el signo $
+// Úsala donde necesites solo el número formateado sin el símbolo de pesos
+const formatCurrencyNoSymbol = (value: number) => {
+    return new Intl.NumberFormat('es-CO', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(value);
+};
+
 const formatNumber = (value: number | string) => {
     // 1. Aseguramos que el valor sea numérico
     const numberValue = parseFloat(value.toString());
@@ -546,15 +555,15 @@ const exportReporteCasino = () => {
                 <div class="grid md:grid-cols-6 gap-3 text-sm">
                     <div>
                         <div class="text-muted-foreground">Neto Final</div>
-                        <div>{{ money(props.resumenGlobal.neto_final) }}</div>
+                        <div>{{ formatCurrencyNoSymbol(props.resumenGlobal.neto_final) }}</div>
                     </div>
                     <div>
                         <div class="text-muted-foreground">Neto Inicial</div>
-                        <div>{{ money(props.resumenGlobal.neto_inicial) }}</div>
+                        <div>{{ formatCurrencyNoSymbol(props.resumenGlobal.neto_inicial) }}</div>
                     </div>
                     <div>
                         <div class="text-muted-foreground">Créditos</div>
-                        <div>{{ money(props.resumenGlobal.creditos) }}</div>
+                        <div>{{ formatCurrencyNoSymbol(props.resumenGlobal.creditos) }}</div>
                     </div>
                     <div>
                         <div class="text-muted-foreground">Recaudo</div>
@@ -930,26 +939,26 @@ const exportReporteCasino = () => {
                     <table v-else-if="form.mode === 'sucursal'" class="min-w-[900px] w-full text-sm">
                         <thead class="bg-emerald-900/20">
                             <tr class="text-left border-b border-emerald-500/30">
-                                <th class="py-3 px-2">Máquina</th>
-                                <th class="py-3 px-2">Entrada</th>
-                                <th class="py-3 px-2">Salida</th>
-                                <th class="py-3 px-2">Jackpots</th>
-                                <th class="py-3 px-2">Neto Final</th>
-                                <th class="py-3 px-2">Neto Inicial</th>
-                                <th class="py-3 px-2">Créditos</th>
-                                <th class="py-3 px-2">Recaudo</th>
+                                <th class="py-3 px-2 text-right">Máquina</th>
+                                <th class="py-3 px-2 text-right">Entrada</th>
+                                <th class="py-3 px-2 text-right">Salida</th>
+                                <th class="py-3 px-2 text-right">Jackpots</th>
+                                <th class="py-3 px-2 text-right">Neto Final</th>
+                                <th class="py-3 px-2 text-right">Neto Inicial</th>
+                                <th class="py-3 px-2 text-right">Créditos</th>
+                                <th class="py-3 px-2 text-right">Recaudo</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="x in props.tablaPrincipal" :key="x.maquina" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
                                 <td class="py-2 px-2 font-medium">{{ x.maquina }}</td>
-                                <td class="py-2 px-2">{{ money(x.entrada) }}</td>
-                                <td class="py-2 px-2">{{ money(x.salida) }}</td>
-                                <td class="py-2 px-2">{{ money(x.jackpots) }}</td>
-                                <td class="py-2 px-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2 px-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2 px-2">{{ money(x.creditos) }}</td>
-                                <td class="py-2 px-2 font-bold" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.entrada) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.salida) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.jackpots) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.neto_final) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.neto_inicial) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.creditos) }}</td>
+                                <td class="py-2 px-2 font-bold text-sm text-right" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
                             </tr>
                             <tr v-if="!props.tablaPrincipal.length">
                                 <td colspan="8" class="py-4 text-center text-muted-foreground">Sin datos</td>
@@ -963,26 +972,26 @@ const exportReporteCasino = () => {
                             <tr class="text-left border-b border-emerald-500/30">
                                 <th class="py-3 px-2">Fecha</th>
                                 <th class="py-3 px-2">Máquina</th>
-                                <th class="py-3 px-2">Entrada</th>
-                                <th class="py-3 px-2">Salida</th>
-                                <th class="py-3 px-2">Jackpots</th>
-                                <th class="py-3 px-2">Neto Final</th>
-                                <th class="py-3 px-2">Neto Inicial</th>
-                                <th class="py-3 px-2">Créditos</th>
-                                <th class="py-3 px-2">Recaudo</th>
+                                <th class="py-3 px-2 text-right">Entrada</th>
+                                <th class="py-3 px-2 text-right">Salida</th>
+                                <th class="py-3 px-2 text-right">Jackpots</th>
+                                <th class="py-3 px-2 text-right">Neto Final</th>
+                                <th class="py-3 px-2 text-right">Neto Inicial</th>
+                                <th class="py-3 px-2 text-right">Créditos</th>
+                                <th class="py-3 px-2 text-right">Recaudo</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="x in props.tablaPrincipal" :key="`${x.fecha}-${x.maquina_id}`" class="border-b border-emerald-500/10 hover:bg-emerald-500/5">
                                 <td class="py-2 px-2">{{ x.fecha }}</td>
                                 <td class="py-2 px-2 font-medium">{{ x.maquina?.ndi }} - {{ x.maquina?.nombre }}</td>
-                                <td class="py-2 px-2">{{ money(x.entrada) }}</td>
-                                <td class="py-2 px-2">{{ money(x.salida) }}</td>
-                                <td class="py-2 px-2">{{ money(x.jackpots) }}</td>
-                                <td class="py-2 px-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2 px-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2 px-2">{{ money(x.total_creditos) }}</td>
-                                <td class="py-2 px-2 font-bold" :class="rojoSiNegativo(x.total_recaudo)">{{ money(x.total_recaudo) }}
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.entrada) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.salida) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.jackpots) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.neto_final) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.neto_inicial) }}</td>
+                                <td class="py-2 px-2 text-xs text-right">{{ formatCurrencyNoSymbol(x.total_creditos) }}</td>
+                                <td class="py-2 px-2 font-bold text-sm text-right" :class="rojoSiNegativo(x.total_recaudo)">{{ money(x.total_recaudo) }}
                                 </td>
                             </tr>
                             <tr v-if="!props.tablaPrincipal.length">
@@ -1065,9 +1074,9 @@ const exportReporteCasino = () => {
                         <tbody>
                             <tr v-for="x in props.tablaSecundaria" :key="x.usuario" class="border-b">
                                 <td class="py-2">{{ x.usuario }}</td>
-                                <td class="py-2">{{ money(x.neto_final) }}</td>
-                                <td class="py-2">{{ money(x.neto_inicial) }}</td>
-                                <td class="py-2">{{ money(x.creditos) }}</td>
+                                <td class="py-2">{{ formatCurrencyNoSymbol(x.neto_final) }}</td>
+                                <td class="py-2">{{ formatCurrencyNoSymbol(x.neto_inicial) }}</td>
+                                <td class="py-2">{{ formatCurrencyNoSymbol(x.creditos) }}</td>
                                 <td class="py-2" :class="rojoSiNegativo(x.recaudo)">{{ money(x.recaudo) }}</td>
                                 <td class="py-2">{{ x.porcentaje }}%</td>
                                 <TableCell class="py-2 px-2">
