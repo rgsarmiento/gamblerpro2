@@ -92,8 +92,11 @@ const maquinaSeleccionada = computed(() =>
 )
 
 const actualizar = () => {
-    // 🧹 Limpiar máquina cuando cambia casino, sucursal o modo
-    form.value.maquina_id = ''
+    // 🧹 Limpiar máquina solo cuando NO estamos en modo máquina
+    // Esto evita que se limpie la selección al actualizar fechas en modo máquina
+    if (form.value.mode !== 'maquina') {
+        form.value.maquina_id = ''
+    }
 
     if (form.value.range !== 'custom') {
         router.get('/reportes', form.value, { preserveState: true, replace: true })
